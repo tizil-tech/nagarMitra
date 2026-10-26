@@ -1,0 +1,21 @@
+{
+  "name": "NagarMitra — Civic Grievance Platform",
+  "short_name": "NagarMitra",
+  "description": "Citizen-centric platform to report, track, and resolve municipal civic issues",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1b2a",
+  "theme_color": "#1a6fdb",
+  "icons": [
+    {
+      "src": "/static/images/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/images/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

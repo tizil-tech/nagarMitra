@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Departments — NagarMitra</title>
+  <meta name="description" content="View municipal departments and their responsibilities on NagarMitra."/>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+  <style>
+    .dept-card {
+      background:var(--bg-card);border-radius:var(--radius-md);
+      border:1px solid var(--border);padding:1.5rem;
+      transition:all var(--transition);
+    }
+    .dept-card:hover { box-shadow:var(--shadow-md); transform:translateY(-2px); }
+    .dept-icon {
+      width:52px;height:52px;border-radius:var(--radius-md);
+      display:flex;align-items:center;justify-content:center;
+      font-size:1.5rem;margin-bottom:1rem;
+    }
+    .dept-category {
+      display:inline-flex;align-items:center;gap:.2rem;
+      padding:.2rem .6rem;border-radius:999px;
+      background:var(--primary-light);color:var(--primary);
+      font-size:.72rem;font-weight:600;margin:.2rem .15rem 0 0;
+    }
+    .depts-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:1.5rem; }
+  </style>
+</head>
+<body>
+<nav class="navbar">
+  <a href="/" class="nav-brand"><div class="logo-icon">NM</div><span class="brand-name">NagarMitra</span></a>
+  <button class="hamburger" id="hamburger-btn"><span></span><span></span><span></span></button>
+  <ul class="nav-links" id="nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/track">Track</a></li>
+    <li><a href="/dashboard">Dashboard</a></li>
+    <li><a href="/campaigns">Campaigns</a></li>
+    <li><a href="/departments">Departments</a></li>
+    <li><a href="/feedback">Feedback</a></li>
+  </ul>
+  <div class="nav-actions">
+    <div id="nav-user-info"></div>
+    <a href="/report-grievance" class="btn btn-accent btn-sm" id="nav-report-btn" style="display:none">+ Report</a>
+    <a href="/login" class="btn btn-primary btn-sm" id="nav-login-btn">Login</a>
+    <button class="btn btn-ghost btn-sm" id="nav-logout-btn" style="display:none">Logout</button>
+  </div>
+</nav>
+
+<div class="page-header">
+  <div class="container">
+    <h1>🏛️ Municipal Departments</h1>
+    <p>Learn which department handles your grievance category and their responsibilities</p>
+  </div>
+</div>
+
+<section class="section">
+  <div class="container">
+    <div class="flex justify-between items-center mb-3" style="flex-wrap:wrap;gap:1rem">
+      <div>
+        <h2 style="font-family:'Poppins',sans-serif;font-size:1.4rem;font-weight:700">Active Departments</h2>
+        <p class="text-muted text-sm">Municipal bodies responsible for civic services</p>
+      </div>
+      <div id="admin-actions" style="display:none">
+        <button class="btn btn-primary" onclick="openAddDeptModal()">+ Add Department</button>
+      </div>
+    </div>
+
+    <div class="depts-grid" id="depts-grid">
+      <div style="grid-column:1/-1;text-align:center;padding:2rem">
+        <div class="spinner" style="margin:0 auto"></div>
+      </div>
+    </div>
+
+    <!-- Category guide -->
+    <div class="card mt-3">
+      <div class="card-header"><span class="card-title">📋 Category to Department Guide</span></div>
+      <div class="card-body">
+        <p class="text-sm text-muted mb-2">When you report a grievance, it is automatically assigned to the relevant department based on category:</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.75rem">
+          ${Object.entries({
+            'Roads':'Public Works Department','Water':'Water Supply Board',
+            'Electricity':'Electricity Board','Sanitation':'Sanitation Department',
+            'Street Lights':'Electricity Board','Garbage':'Sanitation Department',
+            'Parks':'Parks and Recreation','Health':'Health Department',
+            'Traffic':'Traffic Management','Drainage':'Water Supply Board',
+            'Infrastructure':'Public Works Department','Other':'General Administration'
+          }).map(([cat,dept]) => `
+            <div style="display:flex;align-items:center;gap:.5rem;padding:.4rem .75rem;background:var(--bg);border-radius:var(--radius-sm);font-size:.82rem">
+              <span>${categoryIcon(cat)}</span>
+              <div>
+                <div style="font-weight:600">${cat}</div>
+                <div style="color:var(--text-muted);font-size:.75rem">${dept}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Add Dept Modal -->
+<div id="add-dept-modal" class="modal-backdrop" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Add Department</span>
+      <button class="modal-close" onclick="document.getElementById('add-dept-modal').style.display='none'">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group mb-2">
+        <label class="form-label">Department Name *</label>
+        <input type="text" id="d-name" class="form-control" placeholder="e.g., Urban Planning"/>
+      </div>
+      <div class="form-group mb-2">
+        <label class="form-label">Description</label>
+        <textarea id="d-desc" class="form-control" rows="2"></textarea>
+      </div>
+      <div class="form-group mb-2">
+        <label class="form-label">Jurisdiction</label>
+        <input type="text" id="d-jurisdiction" class="form-control" value="City-wide"/>
+      </div>
+      <div class="form-group mb-2">
+        <label class="form-label">Categories (comma-separated)</label>
+        <input type="text" id="d-cats" class="form-control" placeholder="Roads, Infrastructure"/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('add-dept-modal').style.display='none'">Cancel</button>
+      <button class="btn btn-primary" onclick="addDept()">Add Department</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="container">
+    <div class="footer-bottom"><p>© 2026 NagarMitra — Civic Technology for India</p></div>
+  </div>
+</footer>
+
+<script src="/static/js/main.js"></script>
+<script>
+const deptIcons = { 'D001':'🛣️','D002':'💧','D003':'⚡','D004':'🧹','D005':'🌳','D006':'🏥','D007':'🚦','D008':'🏛️' };
+const deptColors = ['#1a6fdb','#0891b2','#f59e0b','#16a34a','#22c55e','#ec4899','#f97316','#6b7280'];
+
+async function init() {
+  const user = await Auth.loadUser();
+  Nav.render(); Nav.highlightActive(); Nav.setupHamburger();
+  if (user?.role === 'admin') document.getElementById('admin-actions').style.display = 'block';
+  loadDepts();
+}
+
+async function loadDepts() {
+  const res = await API.get('/api/departments');
+  const grid = document.getElementById('depts-grid');
+  if (!res.ok) { grid.innerHTML = `<div class="alert alert-error">Failed to load departments</div>`; return; }
+  const depts = res.data.data || [];
+  if (!depts.length) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🏛️</div><h3>No departments</h3></div>`; return; }
+  grid.innerHTML = depts.map((d, i) => `
+    <div class="dept-card" id="${d.department_id}">
+      <div class="dept-icon" style="background:${deptColors[i%deptColors.length]}22;color:${deptColors[i%deptColors.length]}">
+        ${deptIcons[d.department_id] || '🏢'}
+      </div>
+      <h3 style="font-weight:700;margin-bottom:.35rem">${d.department_name}</h3>
+      <p class="text-muted text-sm mb-2">${d.description}</p>
+      <div class="text-sm mb-2"><strong>Jurisdiction:</strong> ${d.jurisdiction}</div>
+      <div style="margin-top:.75rem">
+        <div class="text-sm font-bold text-muted mb-1">HANDLES:</div>
+        ${d.categories.split(',').map(c => `<span class="dept-category">${categoryIcon(c.trim())} ${c.trim()}</span>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function openAddDeptModal() { document.getElementById('add-dept-modal').style.display = 'flex'; }
+
+async function addDept() {
+  const res = await API.post('/api/departments', {
+    department_name: document.getElementById('d-name').value.trim(),
+    description:     document.getElementById('d-desc').value.trim(),
+    jurisdiction:    document.getElementById('d-jurisdiction').value.trim(),
+    categories:      document.getElementById('d-cats').value.trim(),
+  });
+  document.getElementById('add-dept-modal').style.display = 'none';
+  if (res.ok) { Toast.success('Department added!'); loadDepts(); }
+  else Toast.error(res.data.error || 'Failed');
+}
+
+document.getElementById('add-dept-modal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('add-dept-modal'))
+    document.getElementById('add-dept-modal').style.display = 'none';
+});
+
+function categoryIcon(cat) {
+  const m={'Roads':'🛣️','Water':'💧','Electricity':'⚡','Sanitation':'🧹','Parks':'🌳',
+    'Health':'🏥','Traffic':'🚦','Garbage':'🗑️','Street Lights':'💡','Drainage':'🌊',
+    'Infrastructure':'🏗️','Other':'📋','General':'🏛️','Bridges':'🌉','Hygiene':'🧼','Green Spaces':'🌿','Road Safety':'⛔'};
+  return m[cat.trim()] || '📋';
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>My Profile — NagarMitra</title>
+  <meta name="description" content="Manage your NagarMitra account profile and settings."/>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+  <style>
+    .profile-layout { display:grid; grid-template-columns:280px 1fr; gap:2rem; align-items:start; }
+    .avatar-large {
+      width:80px;height:80px;border-radius:50%;
+      background:linear-gradient(135deg,var(--primary),var(--accent));
+      display:flex;align-items:center;justify-content:center;
+      color:#fff;font-size:2rem;font-weight:700;font-family:'Poppins',sans-serif;
+    }
+    @media(max-width:768px) { .profile-layout { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+<nav class="navbar">
+  <a href="/" class="nav-brand"><div class="logo-icon">NM</div><span class="brand-name">NagarMitra</span></a>
+  <button class="hamburger" id="hamburger-btn"><span></span><span></span><span></span></button>
+  <ul class="nav-links" id="nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/track">Track</a></li>
+    <li><a href="/dashboard">Dashboard</a></li>
+    <li><a href="/campaigns">Campaigns</a></li>
+    <li><a href="/departments">Departments</a></li>
+    <li><a href="/feedback">Feedback</a></li>
+  </ul>
+  <div class="nav-actions">
+    <div id="nav-user-info"></div>
+    <a href="/report-grievance" class="btn btn-accent btn-sm" id="nav-report-btn" style="display:none">+ Report</a>
+    <a href="/login" class="btn btn-primary btn-sm" id="nav-login-btn">Login</a>
+    <button class="btn btn-ghost btn-sm" id="nav-logout-btn" style="display:none">Logout</button>
+  </div>
+</nav>
+
+<div class="page-header">
+  <div class="container">
+    <h1>👤 My Profile</h1>
+    <p>Manage your account information and preferences</p>
+  </div>
+</div>
+
+<section class="section">
+  <div class="container">
+    <div id="auth-gate" class="card" style="max-width:400px;margin:0 auto;display:none">
+      <div class="card-body text-center" style="padding:3rem">
+        <div style="font-size:3rem;margin-bottom:1rem">🔐</div>
+        <h2 style="font-weight:700;margin-bottom:.5rem">Login Required</h2>
+        <a href="/login" class="btn btn-primary mt-2">Go to Login</a>
+      </div>
+    </div>
+
+    <div id="profile-content" style="display:none">
+      <div class="profile-layout">
+        <!-- Left Sidebar -->
+        <div class="card" style="padding:1.5rem;text-align:center">
+          <div class="avatar-large" style="margin:0 auto 1rem" id="profile-avatar"></div>
+          <h2 style="font-weight:700" id="profile-name"></h2>
+          <div class="text-muted text-sm" id="profile-email"></div>
+          <span class="badge mt-1" id="profile-role"></span>
+          <div class="text-muted text-sm mt-2" id="profile-joined"></div>
+          <hr style="margin:1.5rem 0;border-color:var(--border)"/>
+          <a href="/dashboard" class="btn btn-outline btn-block mb-1">📋 My Dashboard</a>
+          <a href="/report-grievance" class="btn btn-accent btn-block">+ Report Grievance</a>
+        </div>
+
+        <!-- Right Content -->
+        <div style="display:flex;flex-direction:column;gap:1.5rem">
+          <!-- Edit Profile -->
+          <div class="card">
+            <div class="card-header"><span class="card-title">Edit Profile</span></div>
+            <div class="card-body">
+              <form id="profile-form" novalidate>
+                <div class="alert alert-success" style="display:none" id="profile-success">Profile updated successfully!</div>
+                <div class="alert alert-error form-error-global hidden"></div>
+                <div class="form-group mb-2">
+                  <label class="form-label">Full Name</label>
+                  <input type="text" id="p-name" class="form-control" placeholder="Your full name"/>
+                </div>
+                <div class="form-group mb-3">
+                  <label class="form-label">Phone Number</label>
+                  <input type="tel" id="p-phone" class="form-control" placeholder="+91 98765 43210"/>
+                </div>
+                <button type="submit" class="btn btn-primary" id="save-profile-btn">Save Changes</button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Change Password -->
+          <div class="card">
+            <div class="card-header"><span class="card-title">🔒 Change Password</span></div>
+            <div class="card-body">
+              <form id="password-form" novalidate>
+                <div class="alert alert-success" style="display:none" id="password-success">Password changed successfully!</div>
+                <div class="alert alert-error" style="display:none" id="password-error"></div>
+                <div class="form-group mb-2">
+                  <label class="form-label">Current Password</label>
+                  <input type="password" id="p-current" class="form-control" placeholder="Current password" autocomplete="current-password"/>
+                </div>
+                <div class="form-group mb-2">
+                  <label class="form-label">New Password</label>
+                  <input type="password" id="p-new" class="form-control" placeholder="At least 8 characters" autocomplete="new-password"/>
+                </div>
+                <div class="form-group mb-3">
+                  <label class="form-label">Confirm New Password</label>
+                  <input type="password" id="p-confirm" class="form-control" placeholder="Repeat new password" autocomplete="new-password"/>
+                </div>
+                <button type="submit" class="btn btn-primary" id="save-password-btn">Change Password</button>
+              </form>
+            </div>
+          </div>
+
+          <!-- My Stats -->
+          <div class="card">
+            <div class="card-header"><span class="card-title">📊 My Activity</span></div>
+            <div class="card-body">
+              <div class="stats-grid" id="my-stats">
+                <div class="stat-card"><div class="stat-icon">📋</div><div class="stat-value" id="s-total">—</div><div class="stat-label">Total Filed</div></div>
+                <div class="stat-card success"><div class="stat-icon" style="background:#dcfce7;color:#16a34a">✅</div><div class="stat-value" id="s-resolved">—</div><div class="stat-label">Resolved</div></div>
+                <div class="stat-card warning"><div class="stat-icon" style="background:#fef3c7;color:#d97706">⏳</div><div class="stat-value" id="s-pending">—</div><div class="stat-label">Pending</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script src="/static/js/main.js"></script>
+<script>
+async function init() {
+  const user = await Auth.loadUser();
+  Nav.render(); Nav.highlightActive(); Nav.setupHamburger();
+
+  if (!user) {
+    document.getElementById('auth-gate').style.display = 'block';
+    return;
+  }
+  document.getElementById('profile-content').style.display = 'block';
+  renderProfile(user);
+  loadStats(user);
+}
+
+function renderProfile(user) {
+  const initial = user.name?.charAt(0)?.toUpperCase() || 'U';
+  document.getElementById('profile-avatar').textContent = initial;
+  document.getElementById('profile-name').textContent   = user.name;
+  document.getElementById('profile-email').textContent  = user.email;
+  document.getElementById('profile-joined').textContent = `Joined ${formatDate(user.created_at)}`;
+  const roleEl = document.getElementById('profile-role');
+  roleEl.textContent = user.role.charAt(0).toUpperCase() + user.role.slice(1);
+  roleEl.className = `badge role-${user.role}`;
+  document.getElementById('p-name').value  = user.name || '';
+  document.getElementById('p-phone').value = user.phone || '';
+}
+
+async function loadStats(user) {
+  if (user.role !== 'citizen') return;
+  const res = await API.get('/api/dashboard/stats');
+  if (!res.ok) return;
+  document.getElementById('s-total').textContent    = res.data.my_total ?? 0;
+  document.getElementById('s-resolved').textContent = res.data.my_resolved ?? 0;
+  document.getElementById('s-pending').textContent  = res.data.my_pending ?? 0;
+}
+
+document.getElementById('profile-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('save-profile-btn');
+  const errEl = document.querySelector('#profile-form .form-error-global');
+  errEl.classList.add('hidden');
+  setLoading(btn, true);
+  const res = await API.patch('/api/profile', {
+    name:  document.getElementById('p-name').value.trim(),
+    phone: document.getElementById('p-phone').value.trim(),
+  });
+  setLoading(btn, false);
+  if (res.ok) {
+    document.getElementById('profile-success').style.display = 'flex';
+    setTimeout(() => document.getElementById('profile-success').style.display = 'none', 3000);
+    Auth.user.name = document.getElementById('p-name').value.trim();
+    document.getElementById('profile-name').textContent = Auth.user.name;
+  } else {
+    errEl.textContent = res.data.error || 'Update failed';
+    errEl.classList.remove('hidden');
+  }
+});
+
+document.getElementById('password-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const newPwd = document.getElementById('p-new').value;
+  const confirm= document.getElementById('p-confirm').value;
+  const errEl  = document.getElementById('password-error');
+  const sucEl  = document.getElementById('password-success');
+  errEl.style.display = 'none';
+  sucEl.style.display = 'none';
+  if (newPwd !== confirm) { errEl.textContent = 'Passwords do not match.'; errEl.style.display = 'flex'; return; }
+  const btn = document.getElementById('save-password-btn');
+  setLoading(btn, true);
+  const res = await API.patch('/api/profile', {
+    current_password: document.getElementById('p-current').value,
+    password: newPwd,
+  });
+  setLoading(btn, false);
+  if (res.ok) {
+    sucEl.style.display = 'flex';
+    document.getElementById('password-form').reset();
+  } else {
+    errEl.textContent = res.data.error || 'Failed to change password';
+    errEl.style.display = 'flex';
+  }
+});
+
+init();
+</script>
+</body>
+</html>

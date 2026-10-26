@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NagarMitra — Civic Grievance Management Platform</title>
+  <meta name="description" content="NagarMitra helps Indian citizens report civic grievances, track resolutions, and hold local government accountable. Submit complaints, view maps, and follow progress." />
+  <link rel="manifest" href="/static/manifest.json"/>
+  <meta name="theme-color" content="#1a6fdb"/>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    .category-pills { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+    .pill {
+      padding: .35rem .85rem;
+      border-radius: 999px;
+      border: 1.5px solid var(--border);
+      font-size: .8rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      transition: all var(--transition);
+      white-space: nowrap;
+    }
+    .pill:hover, .pill.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+    .grievances-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1rem;
+    }
+    .split-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      align-items: start;
+    }
+    @media(max-width:768px) { .split-section { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════ NAVBAR ═══════════ -->
+<nav class="navbar" aria-label="Main navigation">
+  <a href="/" class="nav-brand">
+    <div class="logo-icon">NM</div>
+    <span class="brand-name">NagarMitra</span>
+  </a>
+
+  <button class="hamburger" id="hamburger-btn" aria-label="Toggle menu">
+    <span></span><span></span><span></span>
+  </button>
+
+  <ul class="nav-links" id="nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/track">Track</a></li>
+    <li><a href="/dashboard">Dashboard</a></li>
+    <li><a href="/campaigns">Campaigns</a></li>
+    <li><a href="/departments">Departments</a></li>
+    <li><a href="/feedback">Feedback</a></li>
+  </ul>
+
+  <div class="nav-actions">
+    <div id="nav-user-info"></div>
+    <a href="/report-grievance" class="btn btn-accent btn-sm" id="nav-report-btn" style="display:none">+ Report</a>
+    <a href="/login"    class="btn btn-primary btn-sm" id="nav-login-btn">Login</a>
+    <button class="btn btn-ghost btn-sm" id="nav-logout-btn" style="display:none">Logout</button>
+  </div>
+</nav>
+
+<!-- ═══════════ HERO ═══════════ -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-content">
+      <h1>Your City.<br/><span>Your Voice.</span><br/>Our Commitment.</h1>
+      <p>Report civic grievances, track resolutions in real-time, and hold local government accountable. NagarMitra makes municipal governance transparent and responsive.</p>
+
+      <div class="hero-actions" style="margin-bottom:1.25rem">
+        <a href="/report-grievance" class="btn btn-accent btn-lg" id="hero-report-btn">
+          📝 Report a Grievance
+        </a>
+        <a href="/track" class="btn btn-outline btn-lg" style="color:#fff;border-color:rgba(255,255,255,.6)">
+          🔍 Track Grievance
+        </a>
+        <a href="#live-map" class="btn btn-ghost btn-lg" style="color:rgba(255,255,255,.85)">
+          🗺️ Live Map
+        </a>
+      </div>
+
+      <!-- Quick Tracker Box in Hero -->
+      <div style="max-width:520px;background:rgba(255,255,255,0.15);backdrop-filter:blur(12px);padding:.6rem .8rem;border-radius:var(--radius-md);border:1px solid rgba(255,255,255,0.3)">
+        <form action="/track" method="GET" style="display:flex;gap:.5rem">
+          <input type="text" name="id" class="form-control" placeholder="Quick Track: Enter Grievance ID..." style="background:#fff;font-weight:600;font-family:monospace;text-transform:uppercase;font-size:.9rem" required/>
+          <button type="submit" class="btn btn-accent btn-sm" style="white-space:nowrap;padding:.5rem 1rem">
+            Track Now
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ STATS ═══════════ -->
+<section class="section" style="padding-top:2rem;padding-bottom:0">
+  <div class="container">
+    <div class="stats-grid" id="home-stats">
+      <div class="stat-card">
+        <div class="stat-icon">📋</div>
+        <div class="stat-value" id="stat-total">—</div>
+        <div class="stat-label">Total Grievances</div>
+      </div>
+      <div class="stat-card success">
+        <div class="stat-icon" style="background:#dcfce7;color:#16a34a">✅</div>
+        <div class="stat-value" id="stat-resolved">—</div>
+        <div class="stat-label">Resolved</div>
+      </div>
+      <div class="stat-card warning">
+        <div class="stat-icon" style="background:#fef3c7;color:#d97706">⏳</div>
+        <div class="stat-value" id="stat-pending">—</div>
+        <div class="stat-label">Pending</div>
+      </div>
+      <div class="stat-card info">
+        <div class="stat-icon" style="background:#e0f2fe;color:#0891b2">🔧</div>
+        <div class="stat-value" id="stat-inprogress">—</div>
+        <div class="stat-label">In Progress</div>
+      </div>
+      <div class="stat-card accent">
+        <div class="stat-icon" style="background:#fff7ed;color:#f07c11">👥</div>
+        <div class="stat-value" id="stat-users">—</div>
+        <div class="stat-label">Citizens</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⭐</div>
+        <div class="stat-value" id="stat-rating">—</div>
+        <div class="stat-label">Avg. Rating</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ MAP ═══════════ -->
+<section class="section" id="live-map">
+  <div class="container">
+    <div class="flex justify-between items-center mb-2">
+      <div>
+        <h2 style="font-family:'Poppins',sans-serif;font-size:1.5rem;font-weight:700">Live Grievance Map</h2>
+        <p class="text-muted text-sm">Click on markers to view complaint details</p>
+      </div>
+      <div class="flex gap-1">
+        <select class="form-control form-select" id="map-filter-cat" style="width:auto;font-size:.85rem">
+          <option value="">All Categories</option>
+          <option>Roads</option><option>Water</option><option>Electricity</option>
+          <option>Sanitation</option><option>Parks</option><option>Health</option>
+          <option>Traffic</option><option>Garbage</option><option>Street Lights</option>
+          <option>Drainage</option><option>Infrastructure</option><option>Other</option>
+        </select>
+        <select class="form-control form-select" id="map-filter-status" style="width:auto;font-size:.85rem">
+          <option value="">All Statuses</option>
+          <option>Submitted</option><option>Under Review</option><option>Assigned</option>
+          <option>In Progress</option><option>Resolved</option><option>Rejected</option>
+        </select>
+      </div>
+    </div>
+    <div class="map-container">
+      <div id="main-map"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ RECENT GRIEVANCES ═══════════ -->
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="flex justify-between items-center mb-2">
+      <div>
+        <h2 style="font-family:'Poppins',sans-serif;font-size:1.5rem;font-weight:700">Recent Grievances</h2>
+        <p class="text-muted text-sm">Latest civic issues reported by citizens</p>
+      </div>
+      <a href="/dashboard" class="btn btn-outline btn-sm">View All →</a>
+    </div>
+
+    <!-- Category Filters -->
+    <div class="category-pills" id="category-pills">
+      <span class="pill active" data-cat="">All</span>
+      <span class="pill" data-cat="Roads">🛣️ Roads</span>
+      <span class="pill" data-cat="Water">💧 Water</span>
+      <span class="pill" data-cat="Electricity">⚡ Electricity</span>
+      <span class="pill" data-cat="Sanitation">🧹 Sanitation</span>
+      <span class="pill" data-cat="Parks">🌳 Parks</span>
+      <span class="pill" data-cat="Traffic">🚦 Traffic</span>
+      <span class="pill" data-cat="Garbage">🗑️ Garbage</span>
+      <span class="pill" data-cat="Other">📋 Other</span>
+    </div>
+
+    <div class="grievances-grid" id="grievances-grid">
+      <div class="card" style="padding:2rem;text-align:center;grid-column:1/-1">
+        <span class="spinner"></span>
+        <p class="text-muted mt-1">Loading grievances…</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ HOW IT WORKS ═══════════ -->
+<section class="section" style="background:var(--bg-card)">
+  <div class="container">
+    <h2 class="text-center" style="font-family:'Poppins',sans-serif;font-size:1.5rem;font-weight:700;margin-bottom:.5rem">How It Works</h2>
+    <p class="text-center text-muted mb-3">Simple steps to get your civic issues resolved</p>
+    <div class="grid-3" style="margin-top:2rem">
+      <div class="text-center" style="padding:1.5rem">
+        <div style="font-size:3rem;margin-bottom:1rem">📝</div>
+        <h3 style="font-weight:700;margin-bottom:.5rem">1. Report</h3>
+        <p class="text-muted text-sm">Submit your grievance with photo, location, and description in under 2 minutes.</p>
+      </div>
+      <div class="text-center" style="padding:1.5rem">
+        <div style="font-size:3rem;margin-bottom:1rem">🏛️</div>
+        <h3 style="font-weight:700;margin-bottom:.5rem">2. Track</h3>
+        <p class="text-muted text-sm">Get a unique complaint ID and watch live status updates as officials work on it.</p>
+      </div>
+      <div class="text-center" style="padding:1.5rem">
+        <div style="font-size:3rem;margin-bottom:1rem">✅</div>
+        <h3 style="font-weight:700;margin-bottom:.5rem">3. Resolved</h3>
+        <p class="text-muted text-sm">Officials mark your issue resolved with evidence. Rate your experience.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="nav-brand" style="width:fit-content">
+          <div class="logo-icon">NM</div>
+          <span class="brand-name">NagarMitra</span>
+        </div>
+        <p>Empowering citizens to hold local governments accountable through transparent grievance management.</p>
+      </div>
+      <div>
+        <h4>Platform</h4>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/dashboard">Dashboard</a></li>
+          <li><a href="/report-grievance">Report Grievance</a></li>
+          <li><a href="/campaigns">Campaigns</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Departments</h4>
+        <ul>
+          <li><a href="/departments">All Departments</a></li>
+          <li><a href="/departments#water">Water Supply</a></li>
+          <li><a href="/departments#roads">Public Works</a></li>
+          <li><a href="/departments#electricity">Electricity Board</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Account</h4>
+        <ul>
+          <li><a href="/login">Login</a></li>
+          <li><a href="/register">Register</a></li>
+          <li><a href="/profile">My Profile</a></li>
+          <li><a href="/feedback">Feedback</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2026 NagarMitra. A civic technology initiative for transparent local governance in India.</p>
+    </div>
+  </div>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/js/main.js"></script>
+<script>
+// ─── Home Page Logic ─────────────────────────────────────────────────────────
+let map, allMarkers = [], markerLayer;
+let currentCat = '', currentStatus = '';
+let allGrievances = [];
+
+// Load stats
+async function loadStats() {
+  const res = await API.get('/api/dashboard/stats');
+  if (!res.ok) return;
+  const s = res.data;
+  document.getElementById('stat-total').textContent     = s.total_grievances ?? 0;
+  document.getElementById('stat-resolved').textContent  = s.resolved ?? 0;
+  document.getElementById('stat-pending').textContent   = s.pending ?? 0;
+  document.getElementById('stat-inprogress').textContent= s.in_progress ?? 0;
+  document.getElementById('stat-users').textContent     = s.total_users ?? 0;
+  document.getElementById('stat-rating').textContent    = s.avg_rating ? `${s.avg_rating}★` : '—';
+}
+
+// Init Map
+function initMap() {
+  map = L.map('main-map').setView([20.5937, 78.9629], 5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19,
+  }).addTo(map);
+  markerLayer = L.layerGroup().addTo(map);
+}
+
+function renderMapMarkers(grievances) {
+  markerLayer.clearLayers();
+  const filtered = grievances.filter(g => {
+    const lat = parseFloat(g.latitude), lng = parseFloat(g.longitude);
+    if (isNaN(lat) || isNaN(lng)) return false;
+    if (currentCat && g.category !== currentCat) return false;
+    if (currentStatus && g.status !== currentStatus) return false;
+    return true;
+  });
+
+  filtered.forEach(g => {
+    const lat = parseFloat(g.latitude), lng = parseFloat(g.longitude);
+    const marker = L.marker([lat, lng], { icon: MapHelper.markerIcon(g.category, g.status) });
+    marker.bindPopup(MapHelper.popupContent(g));
+    markerLayer.addLayer(marker);
+  });
+}
+
+// Load grievances
+async function loadGrievances(category = '') {
+  const params = new URLSearchParams({ per_page: 100 });
+  if (category) params.set('category', category);
+  const res = await API.get(`/api/grievances?${params}`);
+  if (!res.ok) return;
+  allGrievances = res.data.data || [];
+  renderMapMarkers(allGrievances);
+  renderGrievanceCards(allGrievances.slice(0, 12));
+}
+
+function renderGrievanceCards(grievances) {
+  const grid = document.getElementById('grievances-grid');
+  if (!grievances.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+      <div class="empty-icon">📋</div>
+      <h3>No grievances found</h3>
+      <p>No complaints match the selected filter.</p>
+    </div>`;
+    return;
+  }
+  grid.innerHTML = grievances.map(g => `
+    <div class="grievance-card" onclick="window.location='/grievance-details?id=${g.grievance_id}'">
+      <div class="grievance-card-header">
+        <div>
+          <div class="grievance-title">${g.title}</div>
+          <div class="grievance-meta">
+            <span>${categoryIcon(g.category)} ${g.category}</span>
+            <span>•</span>
+            <span>${timeAgo(g.created_at)}</span>
+          </div>
+        </div>
+        ${statusBadge(g.status)}
+      </div>
+      <div class="grievance-desc">${g.description}</div>
+      <div class="flex items-center justify-between mt-2">
+        ${priorityBadge(g.priority)}
+        <span class="text-sm text-muted">${g.grievance_id}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Category pills
+document.getElementById('category-pills').addEventListener('click', (e) => {
+  const pill = e.target.closest('.pill');
+  if (!pill) return;
+  document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+  pill.classList.add('active');
+  currentCat = pill.dataset.cat;
+  renderMapMarkers(allGrievances);
+  const filtered = currentCat ? allGrievances.filter(g => g.category === currentCat) : allGrievances;
+  renderGrievanceCards(filtered.slice(0, 12));
+});
+
+// Map filters
+document.getElementById('map-filter-cat').addEventListener('change', e => {
+  currentCat = e.target.value;
+  renderMapMarkers(allGrievances);
+});
+document.getElementById('map-filter-status').addEventListener('change', e => {
+  currentStatus = e.target.value;
+  renderMapMarkers(allGrievances);
+});
+
+// Hero report button visibility
+document.addEventListener('DOMContentLoaded', async () => {
+  await Auth.loadUser();
+  const heroBtn = document.getElementById('hero-report-btn');
+  if (!Auth.user) {
+    heroBtn.href = '/login';
+  }
+  loadStats();
+  initMap();
+  loadGrievances();
+});
+</script>
+</body>
+</html>

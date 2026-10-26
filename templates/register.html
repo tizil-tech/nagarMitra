@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Register — NagarMitra</title>
+  <meta name="description" content="Create a NagarMitra account to report and track civic grievances."/>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+  <style>
+    body { display:flex; flex-direction:column; min-height:100vh; }
+    .auth-layout {
+      flex:1; display:grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: calc(100vh - var(--nav-h));
+    }
+    .auth-panel {
+      display:flex; align-items:center; justify-content:center;
+      padding: 3rem 2rem;
+    }
+    .auth-form-card { width:100%; max-width:440px; }
+    .auth-side {
+      background: linear-gradient(135deg, #0f1b2d 0%, #1a3a6b 60%, #1a6fdb 100%);
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      padding:3rem; color:#fff; gap:1.5rem;
+    }
+    .auth-side h2 { font-family:'Poppins',sans-serif; font-size:2rem; font-weight:700; }
+    .auth-side p  { opacity:.8; max-width:300px; text-align:center; font-size:.9rem; }
+    @media(max-width:768px) {
+      .auth-layout { grid-template-columns:1fr; }
+      .auth-side { display:none; }
+    }
+    .strength-bar { height:4px; border-radius:2px; transition:all .3s; margin-top:.35rem; }
+  </style>
+</head>
+<body>
+<nav class="navbar" aria-label="Main navigation">
+  <a href="/" class="nav-brand">
+    <div class="logo-icon">NM</div>
+    <span class="brand-name">NagarMitra</span>
+  </a>
+  <button class="hamburger" id="hamburger-btn" aria-label="Toggle menu">
+    <span></span><span></span><span></span>
+  </button>
+  <ul class="nav-links" id="nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/track">Track</a></li>
+    <li><a href="/dashboard">Dashboard</a></li>
+    <li><a href="/campaigns">Campaigns</a></li>
+    <li><a href="/departments">Departments</a></li>
+    <li><a href="/feedback">Feedback</a></li>
+  </ul>
+  <div class="nav-actions">
+    <a href="/login" class="btn btn-outline btn-sm">Login</a>
+  </div>
+</nav>
+
+<div class="auth-layout">
+  <div class="auth-panel">
+    <div class="auth-form-card">
+      <div style="margin-bottom:2rem">
+        <h1 style="font-family:'Poppins',sans-serif;font-size:1.75rem;font-weight:700;margin-bottom:.35rem">Create Account</h1>
+        <p class="text-muted text-sm">Join thousands of citizens making their city better</p>
+      </div>
+
+      <form id="register-form" novalidate>
+        <div class="alert alert-error form-error-global hidden"></div>
+
+        <div class="form-group mb-2">
+          <label class="form-label" for="name">Full Name</label>
+          <div class="input-group">
+            <span class="input-icon">👤</span>
+            <input type="text" id="name" name="name" class="form-control"
+                   placeholder="Enter your full name" autocomplete="name" required/>
+          </div>
+        </div>
+
+        <div class="form-group mb-2">
+          <label class="form-label" for="email">Email Address</label>
+          <div class="input-group">
+            <span class="input-icon">📧</span>
+            <input type="email" id="email" name="email" class="form-control"
+                   placeholder="you@example.com" autocomplete="email" required/>
+          </div>
+        </div>
+
+        <div class="form-group mb-2">
+          <label class="form-label" for="phone">Phone Number <span class="text-muted">(Optional)</span></label>
+          <div class="input-group">
+            <span class="input-icon">📱</span>
+            <input type="tel" id="phone" name="phone" class="form-control"
+                   placeholder="+91 98765 43210" autocomplete="tel"/>
+          </div>
+        </div>
+
+        <div class="form-group mb-3">
+          <label class="form-label" for="password">Password</label>
+          <div class="input-group">
+            <span class="input-icon">🔒</span>
+            <input type="password" id="password" name="password" class="form-control"
+                   placeholder="At least 8 characters" autocomplete="new-password" required/>
+          </div>
+          <div id="strength-bar" class="strength-bar" style="background:var(--border)"></div>
+          <div id="strength-label" class="text-sm text-muted" style="margin-top:.2rem"></div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block btn-lg" id="register-btn">
+          Create Account →
+        </button>
+      </form>
+
+      <p class="text-center mt-2 text-sm">
+        Already have an account? <a href="/login">Login here</a>
+      </p>
+    </div>
+  </div>
+
+  <div class="auth-side">
+    <div style="font-size:3.5rem">🌆</div>
+    <h2>Join NagarMitra</h2>
+    <p>Be part of the movement making Indian cities more livable, responsive, and transparent.</p>
+    <div style="background:rgba(255,255,255,.1);border-radius:12px;padding:1.5rem;margin-top:1rem;max-width:280px;text-align:center">
+      <div style="font-size:2rem;font-weight:800;font-family:'Poppins',sans-serif">10,000+</div>
+      <div style="font-size:.875rem;opacity:.8">Grievances resolved across India</div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/main.js"></script>
+<script>
+// Password strength indicator
+const pwInput = document.getElementById('password');
+const bar     = document.getElementById('strength-bar');
+const label   = document.getElementById('strength-label');
+
+pwInput.addEventListener('input', () => {
+  const v = pwInput.value;
+  let strength = 0;
+  if (v.length >= 8) strength++;
+  if (/[A-Z]/.test(v)) strength++;
+  if (/[0-9]/.test(v)) strength++;
+  if (/[^A-Za-z0-9]/.test(v)) strength++;
+  const colors  = ['', '#ef4444', '#f97316', '#f59e0b', '#22c55e'];
+  const labels  = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+  bar.style.background = colors[strength] || 'var(--border)';
+  bar.style.width = strength ? `${strength * 25}%` : '0';
+  label.textContent = labels[strength] ? `Strength: ${labels[strength]}` : '';
+  label.style.color = colors[strength];
+});
+
+document.getElementById('register-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn  = document.getElementById('register-btn');
+  const errEl = document.querySelector('#register-form .form-error-global');
+  errEl.classList.add('hidden');
+  setLoading(btn, true);
+
+  const res = await API.post('/api/auth/register', {
+    name:     document.getElementById('name').value.trim(),
+    email:    document.getElementById('email').value.trim(),
+    phone:    document.getElementById('phone').value.trim(),
+    password: document.getElementById('password').value,
+  });
+
+  setLoading(btn, false);
+  if (res.ok) {
+    Toast.success('Account created! Welcome to NagarMitra!');
+    setTimeout(() => window.location.href = '/dashboard', 800);
+  } else {
+    errEl.textContent = res.data.error || 'Registration failed.';
+    errEl.classList.remove('hidden');
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Campaigns — NagarMitra</title>
+  <meta name="description" content="Join civic improvement campaigns and make your city better with NagarMitra."/>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+  <style>
+    .campaign-card {
+      background:var(--bg-card);
+      border-radius:var(--radius-md);
+      border:1px solid var(--border);
+      overflow:hidden;
+      transition:all var(--transition);
+    }
+    .campaign-card:hover { box-shadow:var(--shadow-md); transform:translateY(-2px); }
+    .campaign-banner {
+      height:140px;
+      background:linear-gradient(135deg, var(--primary), var(--primary-dark));
+      display:flex;align-items:center;justify-content:center;
+      font-size:3.5rem;
+    }
+    .campaign-body { padding:1.25rem; }
+    .campaigns-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:1.5rem; }
+  </style>
+</head>
+<body>
+<nav class="navbar">
+  <a href="/" class="nav-brand"><div class="logo-icon">NM</div><span class="brand-name">NagarMitra</span></a>
+  <button class="hamburger" id="hamburger-btn"><span></span><span></span><span></span></button>
+  <ul class="nav-links" id="nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/track">Track</a></li>
+    <li><a href="/dashboard">Dashboard</a></li>
+    <li><a href="/campaigns">Campaigns</a></li>
+    <li><a href="/departments">Departments</a></li>
+    <li><a href="/feedback">Feedback</a></li>
+  </ul>
+  <div class="nav-actions">
+    <div id="nav-user-info"></div>
+    <a href="/report-grievance" class="btn btn-accent btn-sm" id="nav-report-btn" style="display:none">+ Report</a>
+    <a href="/login" class="btn btn-primary btn-sm" id="nav-login-btn">Login</a>
+    <button class="btn btn-ghost btn-sm" id="nav-logout-btn" style="display:none">Logout</button>
+  </div>
+</nav>
+
+<div class="page-header">
+  <div class="container">
+    <h1>📢 Community Campaigns</h1>
+    <p>Join civic improvement initiatives and make your city a better place to live</p>
+  </div>
+</div>
+
+<section class="section">
+  <div class="container">
+    <div class="flex justify-between items-center mb-3">
+      <div>
+        <h2 style="font-family:'Poppins',sans-serif;font-size:1.4rem;font-weight:700">Active Campaigns</h2>
+        <p class="text-muted text-sm">Participate in community-driven initiatives</p>
+      </div>
+      <div id="admin-create-btn" style="display:none">
+        <button class="btn btn-accent" onclick="openCreateModal()">+ New Campaign</button>
+      </div>
+    </div>
+
+    <div class="campaigns-grid" id="campaigns-grid">
+      <div style="grid-column:1/-1;text-align:center;padding:2rem">
+        <div class="spinner" style="margin:0 auto"></div>
+        <p class="text-muted mt-2">Loading campaigns…</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Create Campaign Modal -->
+<div id="create-modal" class="modal-backdrop" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">📢 Create Campaign</span>
+      <button class="modal-close" onclick="document.getElementById('create-modal').style.display='none'">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group mb-2">
+        <label class="form-label">Campaign Title *</label>
+        <input type="text" id="c-title" class="form-control" placeholder="e.g., Clean City Drive"/>
+      </div>
+      <div class="form-group mb-2">
+        <label class="form-label">Description</label>
+        <textarea id="c-desc" class="form-control" rows="3" placeholder="What is this campaign about?"></textarea>
+      </div>
+      <div class="form-group mb-2">
+        <label class="form-label">Location</label>
+        <input type="text" id="c-location" class="form-control" placeholder="e.g., Sector 5, MG Road"/>
+      </div>
+      <div class="form-row form-row-2 mb-2">
+        <div class="form-group">
+          <label class="form-label">Start Date</label>
+          <input type="date" id="c-start" class="form-control"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">End Date</label>
+          <input type="date" id="c-end" class="form-control"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('create-modal').style.display='none'">Cancel</button>
+      <button class="btn btn-accent" id="create-campaign-btn" onclick="createCampaign()">Create Campaign</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="container">
+    <div class="footer-bottom">
+      <p>© 2026 NagarMitra — Civic Technology for India</p>
+    </div>
+  </div>
+</footer>
+
+<script src="/static/js/main.js"></script>
+<script>
+let myUser = null;
+const campaignEmojis = ['🌱','🏗️','🌊','🛣️','🏥','♻️','🌳','💡','💧','🚦'];
+
+async function init() {
+  myUser = await Auth.loadUser();
+  Nav.render();
+  Nav.highlightActive();
+  Nav.setupHamburger();
+  if (myUser?.role === 'admin') {
+    document.getElementById('admin-create-btn').style.display = 'block';
+  }
+  loadCampaigns();
+}
+
+async function loadCampaigns() {
+  const res = await API.get('/api/campaigns');
+  const grid = document.getElementById('campaigns-grid');
+  if (!res.ok) { grid.innerHTML = `<div class="alert alert-error">Failed to load campaigns</div>`; return; }
+  const campaigns = res.data.data || [];
+  if (!campaigns.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+      <div class="empty-icon">📢</div>
+      <h3>No active campaigns</h3>
+      <p>Check back soon for community initiatives in your area.</p>
+    </div>`;
+    return;
+  }
+  grid.innerHTML = campaigns.map((c, i) => `
+    <div class="campaign-card">
+      <div class="campaign-banner" style="background:linear-gradient(135deg,${randomColor(i)})">
+        ${campaignEmojis[i % campaignEmojis.length]}
+      </div>
+      <div class="campaign-body">
+        <div class="flex justify-between items-center mb-1">
+          <h3 style="font-weight:700;font-size:1rem">${c.title}</h3>
+          <span class="badge badge-${c.status.toLowerCase()}">${c.status}</span>
+        </div>
+        <p class="text-muted text-sm mb-2">${c.description || 'Community improvement initiative'}</p>
+        <div style="display:flex;flex-wrap:wrap;gap:.75rem;font-size:.78rem;color:var(--text-muted);margin-bottom:1rem">
+          ${c.location ? `<span>📍 ${c.location}</span>` : ''}
+          ${c.start_date ? `<span>📅 ${formatDate(c.start_date)} – ${formatDate(c.end_date)}</span>` : ''}
+          <span>👥 ${c.participant_count} participants</span>
+        </div>
+        <div class="flex justify-between items-center">
+          ${myUser ? `
+            <button class="btn btn-primary btn-sm" onclick="joinCampaign('${c.campaign_id}', this)">
+              Join Campaign
+            </button>` :
+            `<a href="/login" class="btn btn-outline btn-sm">Login to Join</a>`}
+          ${myUser?.role === 'admin' ? `
+            <button class="btn btn-ghost btn-sm" onclick="closeCampaign('${c.campaign_id}')">Close</button>` : ''}
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function randomColor(i) {
+  const palettes = [
+    '#1a6fdb, #0f1b2d', '#f07c11, #c9660e', '#16a34a, #14532d',
+    '#0891b2, #0e4472', '#7c3aed, #4c1d95', '#dc2626, #7f1d1d',
+  ];
+  return palettes[i % palettes.length];
+}
+
+async function joinCampaign(id, btn) {
+  if (!myUser) { window.location.href = '/login'; return; }
+  setLoading(btn, true);
+  const res = await API.post(`/api/campaigns/${id}/join`);
+  setLoading(btn, false);
+  if (res.ok) { Toast.success('You joined the campaign!'); btn.textContent = '✅ Joined'; btn.disabled = true; btn.className = 'btn btn-ghost btn-sm'; }
+  else Toast.error(res.data.error || 'Could not join');
+}
+
+async function closeCampaign(id) {
+  showConfirm('Close this campaign?', async () => {
+    const res = await API.patch(`/api/campaigns/${id}`, { status: 'Closed' });
+    if (res.ok) { Toast.success('Campaign closed'); loadCampaigns(); }
+    else Toast.error('Failed to close campaign');
+  });
+}
+
+function openCreateModal() {
+  document.getElementById('create-modal').style.display = 'flex';
+  document.getElementById('c-start').value = new Date().toISOString().slice(0,10);
+}
+
+async function createCampaign() {
+  const btn = document.getElementById('create-campaign-btn');
+  setLoading(btn, true);
+  const res = await API.post('/api/campaigns', {
+    title:       document.getElementById('c-title').value.trim(),
+    description: document.getElementById('c-desc').value.trim(),
+    location:    document.getElementById('c-location').value.trim(),
+    start_date:  document.getElementById('c-start').value,
+    end_date:    document.getElementById('c-end').value,
+  });
+  setLoading(btn, false);
+  document.getElementById('create-modal').style.display = 'none';
+  if (res.ok) { Toast.success('Campaign created!'); loadCampaigns(); }
+  else Toast.error(res.data.error || 'Creation failed');
+}
+
+document.getElementById('create-modal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('create-modal'))
+    document.getElementById('create-modal').style.display = 'none';
+});
+
+init();
+</script>
+</body>
+</html>

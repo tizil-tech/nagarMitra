@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Report a Grievance — NagarMitra</title>
+  <meta name="description" content="Report a civic issue in 4 simple steps with category icons, map pinning, photo evidence, and instant tracking."/>
+  <link rel="manifest" href="/static/manifest.json"/>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    #wizard-map {
+      height: 320px;
+      border-radius: var(--radius-md);
+      border: 1.5px solid var(--border);
+    }
+    .img-upload-box {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      text-align: center;
+      background: #f8fafc;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .img-upload-box:hover {
+      border-color: var(--primary);
+      background: #f0f7ff;
+    }
+    .preview-card {
+      position: relative;
+      display: inline-block;
+      margin-top: 0.75rem;
+    }
+    .preview-img {
+      max-width: 100%;
+      max-height: 200px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+    }
+    .preview-remove-btn {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      background: var(--danger);
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      cursor: pointer;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .title-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.4rem;
+    }
+    .title-chip {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: all var(--transition);
+    }
+    .title-chip:hover {
+      background: var(--primary-light);
+      color: var(--primary);
+      border-color: var(--primary);
+    }
+    .step-actions {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-top: 2rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+    }
+    @media(max-width: 500px) {
+      .step-actions {
+        flex-direction: column-reverse;
+      }
+      .step-actions .btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════ NAVBAR ═══════════ -->
+<nav class="navbar" aria-label="Main navigation">
+  <a href="/" class="nav-brand">
+    <div class="logo-icon">NM</div>
+    <span class="brand-name">NagarMitra</span>
+  </a>
+
+  <button class="hamburger" id="hamburger-btn" aria-label="Toggle menu">
+    <span></span><span></span><span></span>
+  </button>
+
+  <ul class="nav-links" id="nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/track">Track</a></li>
+    <li><a href="/dashboard">Dashboard</a></li>
+    <li><a href="/campaigns">Campaigns</a></li>
+    <li><a href="/departments">Departments</a></li>
+    <li><a href="/feedback">Feedback</a></li>
+  </ul>
+
+  <div class="nav-actions">
+    <div id="nav-user-info"></div>
+    <a href="/report-grievance" class="btn btn-accent btn-sm" id="nav-report-btn" style="display:none">+ Report</a>
+    <a href="/login" class="btn btn-primary btn-sm" id="nav-login-btn">Login</a>
+    <button class="btn btn-ghost btn-sm" id="nav-logout-btn" style="display:none">Logout</button>
+  </div>
+</nav>
+
+<!-- ═══════════ HEADER ═══════════ -->
+<div class="page-header">
+  <div class="container text-center">
+    <h1>📝 Report a Civic Grievance</h1>
+    <p>Guided, fast, and transparent municipal problem reporting</p>
+  </div>
+</div>
+
+<section class="section">
+  <div class="container wizard-container">
+
+    <!-- Auth gate -->
+    <div id="auth-gate" class="card" style="max-width:480px;margin:0 auto;display:none">
+      <div class="card-body text-center" style="padding:3rem">
+        <div style="font-size:3rem;margin-bottom:1rem">🔐</div>
+        <h2 style="font-size:1.2rem;font-weight:700;margin-bottom:.5rem">Login Required to Report</h2>
+        <p class="text-muted mb-3">To ensure accountability and prevent spam, please log in with your verified citizen account.</p>
+        <div style="display:flex;gap:1rem;justify-content:center">
+          <a href="/login" class="btn btn-primary">Login</a>
+          <a href="/register" class="btn btn-outline">Register Account</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- WIZARD CARD -->
+    <div id="wizard-box" class="card card-elevated" style="display:none">
+      <div class="card-body" style="padding:1.75rem">
+
+        <!-- 4-Step Visual Stepper -->
+        <div class="wizard-stepper">
+          <div class="wizard-connector">
+            <div class="wizard-connector-fill" id="connector-fill"></div>
+          </div>
+
+          <div class="wizard-step-item active" id="step-ind-1">
+            <div class="wizard-step-circle">1</div>
+            <div class="wizard-step-title">1. Choose Issue</div>
+          </div>
+
+          <div class="wizard-step-item" id="step-ind-2">
+            <div class="wizard-step-circle">2</div>
+            <div class="wizard-step-title">2. Pin Location</div>
+          </div>
+
+          <div class="wizard-step-item" id="step-ind-3">
+            <div class="wizard-step-circle">3</div>
+            <div class="wizard-step-title">3. Add Evidence</div>
+          </div>
+
+          <div class="wizard-step-item" id="step-ind-4">
+            <div class="wizard-step-circle">4</div>
+            <div class="wizard-step-title">4. Review & Submit</div>
+          </div>
+        </div>
+
+        <div id="wizard-error" class="alert alert-error" style="display:none;margin-bottom:1rem"></div>
+
+        <!-- ═══════════ STEP 1: CHOOSE ISSUE ═══════════ -->
+        <div class="wizard-panel active" id="step-panel-1">
+          <div style="text-align:center;margin-bottom:1.25rem">
+            <h3 style="font-size:1.2rem;font-weight:700">Select Issue Category</h3>
+            <p class="text-muted text-sm">Choose the civic problem that best matches what you observed</p>
+          </div>
+
+          <div class="category-select-grid" id="category-grid">
+            <!-- Road damage -->
+            <div class="category-card" data-category="Roads" data-priority="High" onclick="selectCategory(this)">
+              <div class="cat-check">✓</div>
+              <div class="cat-icon">🛣️</div>
+              <div class="cat-name">Road Damage</div>
+              <div class="cat-dept">Potholes, broken tarmac, pavements</div>
+            </div>
+
+            <!-- Garbage -->
+            <div class="category-card" data-category="Garbage" data-priority="Medium" onclick="selectCategory(this)">
+              <div class="cat-check">✓</div>
+              <div class="cat-icon">🗑️</div>
+              <div class="cat-name">Garbage</div>
+              <div class="cat-dept">Uncollected trash, open dumping</div>
+            </div>
+
+            <!-- Water supply -->
+            <div class="category-card" data-category="Water" data-priority="High" onclick="selectCategory(this)">
+              <div class="cat-check">✓</div>
+              <div class="cat-icon">💧</div>
+              <div class="cat-name">Water Supply</div>
+              <div class="cat-dept">Pipeline leaks, dirty water, pressure</div>
+            </div>
+
+            <!-- Drainage -->
+            <div class="category-card" data-category="Drainage" data-priority="High" onclick="selectCategory(this)">
+              <div class="cat-check">✓</div>
+              <div class="cat-icon">🌊</div>
+              <div class="cat-name">Drainage</div>
+              <div class="cat-dept">Clogged drains, sewage, flooding</div>
+            </div>
+
+            <!-- Streetlights -->
+            <div class="category-card" data-category="Street Lights" data-priority="Medium" onclick="selectCategory(this)">
+              <div class="cat-check">✓</div>
+              <div class="cat-icon">💡</div>
+              <div class="cat-name">Streetlights</div>
+              <div class="cat-dept">Dark street, broken pole, flickering</div>
+            </div>
+
+            <!-- Sanitation -->
+            <div class="category-card" data-category="Sanitation" data-priority="Medium" onclick="selectCategory(this)">
+              <div class="cat-check">✓</div>
+              <div class="cat-icon">🧹</div>
+              <div class="cat-name">Sanitation</div>
+              <div class="cat-dept">Public toilet hygiene, pest spray</div>
+            </div>
+
+            <!-- Electricity -->
+            <div class="category-card" data-category="Electricity" data-priority="Urgent" onclick="selectCategory(this)">
+              <div class="cat-check">✓</div>
+              <div class="cat-icon">⚡</div>
+              <div class="cat-name">Electricity</div>
+              <div class="cat-dept">Dangling live wires, transformer</div>
+            </div>
+
+            <!-- Other -->
+            <div class="category-card" data-category="Other" data-priority="Low" onclick="selectCategory(this)">
+              <div class="cat-check">✓</div>
+              <div class="cat-icon">📋</div>
+              <div class="cat-name">Other Civic Issue</div>
+              <div class="cat-dept">Parks, traffic signs, stray animals</div>
+            </div>
+          </div>
+
+          <!-- Priority Estimator -->
+          <div class="priority-estimator-box" id="priority-box" style="display:none">
+            <div style="display:flex;align-items:center;gap:.6rem">
+              <span style="font-size:1.1rem">⚡</span>
+              <div>
+                <strong style="font-size:.85rem">Estimated Urgency:</strong>
+                <span id="priority-est-label" class="badge badge-medium">Medium</span>
+              </div>
+            </div>
+            <div style="font-size:.78rem;color:var(--text-muted)">
+              Resolution target: <span id="priority-sla-days">10 days</span>
+            </div>
+          </div>
+
+          <div class="step-actions">
+            <div></div>
+            <button class="btn btn-primary" id="btn-next-1" onclick="goToStep(2)" disabled>
+              Next: Pin Location →
+            </button>
+          </div>
+        </div>
+
+        <!-- ═══════════ STEP 2: PIN LOCATION ═══════════ -->
+        <div class="wizard-panel" id="step-panel-2">
+          <div style="text-align:center;margin-bottom:1.25rem">
+            <h3 style="font-size:1.2rem;font-weight:700">Pin Complaint Location</h3>
+            <p class="text-muted text-sm">Click anywhere on the map or tap the GPS button below</p>
+          </div>
+
+          <div style="display:flex;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap">
+            <button type="button" class="btn btn-outline btn-sm" id="btn-geolocation" onclick="useCurrentLocation()">
+              📍 Use My Current GPS Location
+            </button>
+            <div id="geo-status" class="text-muted text-sm" style="display:flex;align-items:center"></div>
+          </div>
+
+          <div id="wizard-map"></div>
+
+          <div class="form-group mt-2">
+            <label class="form-label" for="location_text">Street Address / Nearby Landmark *</label>
+            <input type="text" id="location_text" class="form-control"
+                   placeholder="e.g., Near Bus Stand, 2nd Main Road, Sector 4" maxlength="150" required/>
+          </div>
+
+          <div id="location-badge" class="location-selected mt-1" style="display:none">
+            📍 Pinned Coordinates: <span id="coords-text"></span>
+          </div>
+
+          <!-- Duplicate warning alert -->
+          <div id="duplicate-warning" class="duplicate-alert" style="display:none">
+            <h4>⚠️ Similar Complaint Nearby Detected</h4>
+            <p id="duplicate-text">A complaint in this category was reported within 750 meters recently.</p>
+            <ul id="duplicate-list"></ul>
+            <p style="font-size:.78rem;margin-top:.4rem;opacity:.85">
+              If your issue is distinct or persists, you are welcome to continue filing.
+            </p>
+          </div>
+
+          <div class="step-actions">
+            <button class="btn btn-ghost" onclick="goToStep(1)">← Back to Category</button>
+            <button class="btn btn-primary" id="btn-next-2" onclick="goToStep(3)">
+              Next: Add Evidence →
+            </button>
+          </div>
+        </div>
+
+        <!-- ═══════════ STEP 3: ADD EVIDENCE ═══════════ -->
+        <div class="wizard-panel" id="step-panel-3">
+          <div style="text-align:center;margin-bottom:1.25rem">
+            <h3 style="font-size:1.2rem;font-weight:700">Describe & Add Evidence</h3>
+            <p class="text-muted text-sm">Clear photos and accurate descriptions resolve 3x faster</p>
+          </div>
+
+          <div class="form-group mb-2">
+            <label class="form-label" for="title">Title *</label>
+            <input type="text" id="title" class="form-control"
+                   placeholder="e.g., Large pothole causing traffic jam" maxlength="120" required/>
+            <div class="title-chips" id="title-chips"></div>
+          </div>
+
+          <div class="form-group mb-2">
+            <label class="form-label" for="description">Detailed Description *</label>
+            <textarea id="description" class="form-control" rows="4" maxlength="2000"
+                      placeholder="Explain the severity, how long it has been present, and risk to residents..." required></textarea>
+            <div class="text-muted text-sm text-right" id="desc-chars">0 / 2000</div>
+          </div>
+
+          <!-- Photo Upload -->
+          <div class="form-group mb-2">
+            <label class="form-label">Photo Evidence <span class="text-muted">(Optional, max 5MB)</span></label>
+            <div class="img-upload-box" onclick="document.getElementById('image-input').click()">
+              <div style="font-size:2rem;margin-bottom:.3rem">📷</div>
+              <div style="font-weight:600;font-size:.9rem;color:var(--primary)">Click or tap to upload photo</div>
+              <div class="text-muted text-sm">PNG, JPG, JPEG, WEBP up to 5MB</div>
+            </div>
+            <input type="file" id="image-input" accept=".jpg,.jpeg,.png,.webp" style="display:none" onchange="handleImageSelected(this)"/>
+
+            <div id="image-preview-wrap" class="preview-card" style="display:none">
+              <img id="image-preview-el" class="preview-img" alt="Preview"/>
+              <button type="button" class="preview-remove-btn" onclick="removeImage()">✕</button>
+            </div>
+          </div>
+
+          <div class="step-actions">
+            <button class="btn btn-ghost" onclick="goToStep(2)">← Back to Location</button>
+            <button class="btn btn-primary" id="btn-next-3" onclick="goToStep(4)">
+              Next: Review & Submit →
+            </button>
+          </div>
+        </div>
+
+        <!-- ═══════════ STEP 4: REVIEW & SUBMIT ═══════════ -->
+        <div class="wizard-panel" id="step-panel-4">
+          <div style="text-align:center;margin-bottom:1.25rem">
+            <h3 style="font-size:1.2rem;font-weight:700">Review Your Grievance</h3>
+            <p class="text-muted text-sm">Please verify the details before officially lodging your complaint</p>
+          </div>
+
+          <div class="review-card">
+            <div class="review-item">
+              <div class="review-label">Category</div>
+              <div class="review-value" id="rev-category">—</div>
+            </div>
+            <div class="review-item">
+              <div class="review-label">Estimated SLA</div>
+              <div class="review-value" id="rev-sla">—</div>
+            </div>
+            <div class="review-item">
+              <div class="review-label">Address</div>
+              <div class="review-value" id="rev-address">—</div>
+            </div>
+            <div class="review-item">
+              <div class="review-label">Coordinates</div>
+              <div class="review-value" id="rev-coords">—</div>
+            </div>
+            <div class="review-item">
+              <div class="review-label">Issue Title</div>
+              <div class="review-value" id="rev-title" style="font-weight:700">—</div>
+            </div>
+            <div class="review-item">
+              <div class="review-label">Description</div>
+              <div class="review-value" id="rev-desc" style="white-space:pre-wrap">—</div>
+            </div>
+            <div class="review-item" id="rev-photo-row" style="display:none">
+              <div class="review-label">Attached Photo</div>
+              <div class="review-value">
+                <img id="rev-photo-img" style="max-height:120px;border-radius:var(--radius-sm)" alt="Proof"/>
+              </div>
+            </div>
+          </div>
+
+          <div class="step-actions">
+            <button class="btn btn-ghost" onclick="goToStep(3)">← Back to Edit</button>
+            <button class="btn btn-accent btn-lg" id="submit-btn" onclick="submitGrievance()">
+              🚀 Confirm & Submit Grievance
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ═══════════ SUCCESS SCREEN ═══════════ -->
+    <div id="success-screen" class="success-screen-card" style="display:none">
+      <div class="success-badge-icon">🎉</div>
+      <h2 style="font-size:1.5rem;font-weight:800;color:var(--text-primary);margin-bottom:.4rem">
+        Grievance Lodged Successfully!
+      </h2>
+      <p class="text-muted" style="max-width:440px;margin:0 auto">
+        Your complaint has been assigned a unique tracking number and forwarded to the municipal department.
+      </p>
+
+      <div class="tracking-code-pill" id="success-id-pill">
+        <span id="final-tracking-id">GRV-...</span>
+        <button class="btn btn-sm btn-ghost" onclick="copyTrackingId()" style="padding:2px 8px;font-size:.8rem" title="Copy to clipboard">
+          📋 Copy
+        </button>
+      </div>
+
+      <div style="display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap;margin-top:1.5rem">
+        <a id="btn-track-success" href="#" class="btn btn-primary">
+          🔍 Track Grievance Live
+        </a>
+        <button class="btn btn-outline" onclick="resetWizard()">
+          📝 File Another Grievance
+        </button>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<footer>
+  <div class="container text-center">
+    <p>© 2026 NagarMitra Platform. Transparent Municipal Governance for Every Citizen.</p>
+  </div>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/js/main.js"></script>
+<script>
+let currentUser = null;
+let wizardMap = null;
+let mapMarker = null;
+
+// Wizard State
+const state = {
+  step: 1,
+  category: '',
+  priority: 'Medium',
+  latitude: '',
+  longitude: '',
+  location_text: '',
+  title: '',
+  description: '',
+  imageFile: null,
+};
+
+const suggestedTitles = {
+  'Roads': ['Pothole on main road', 'Broken footpath / sidewalk', 'Water accumulation due to road dip'],
+  'Garbage': ['Overflowing community dustbin', 'Garbage dump not cleared for 3 days', 'Debris left on pavement'],
+  'Water': ['Major water pipeline leak on road', 'Dirty / muddy tap water supply', 'Very low water pressure'],
+  'Drainage': ['Clogged storm drain causing flooding', 'Sewage overflow near houses', 'Open manhole hazard'],
+  'Street Lights': ['Streetlight non-functional for a week', 'Broken electric pole leaning', 'Dark stretch at intersection'],
+  'Sanitation': ['Public toilet unusable and unclean', 'Mosquito breeding in stagnant drain', 'Urgent sanitization needed'],
+  'Electricity': ['Dangling low-hanging electric cable', 'Sparks from transformer pole', 'Power outage in residential block'],
+  'Other': ['Encroachment on public road', 'Broken park swing / fence', 'Stray cattle blocking road'],
+};
+
+document.addEventListener('DOMContentLoaded', async () => {
+  currentUser = await Auth.loadUser();
+  if (!currentUser) {
+    document.getElementById('auth-gate').style.display = 'block';
+    return;
+  }
+  document.getElementById('wizard-box').style.display = 'block';
+
+  // Description character counter
+  const descEl = document.getElementById('description');
+  descEl.addEventListener('input', () => {
+    document.getElementById('desc-chars').textContent = `${descEl.value.length} / 2000`;
+  });
+});
+
+function selectCategory(el) {
+  document.querySelectorAll('.category-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+
+  state.category = el.dataset.category;
+  state.priority = el.dataset.priority || 'Medium';
+
+  // Update Priority Estimator box
+  const box = document.getElementById('priority-box');
+  const label = document.getElementById('priority-est-label');
+  const slaEl = document.getElementById('priority-sla-days');
+
+  const slaDays = { 'Urgent': '48 hours', 'High': '5 days', 'Medium': '10 days', 'Low': '15 days' };
+
+  label.className = `badge badge-${state.priority.toLowerCase()}`;
+  label.textContent = state.priority;
+  slaEl.textContent = slaDays[state.priority] || '7 days';
+  box.style.display = 'flex';
+
+  // Populate title suggestion chips
+  const chipsContainer = document.getElementById('title-chips');
+  const titles = suggestedTitles[state.category] || [];
+  chipsContainer.innerHTML = titles.map(t => `
+    <span class="title-chip" onclick="pickTitleChip('${t}')">${t}</span>
+  `).join('');
+
+  document.getElementById('btn-next-1').disabled = false;
+
+  // Check duplicate if location already pinned
+  if (state.latitude && state.longitude) {
+    checkDuplicates();
+  }
+}
+
+function pickTitleChip(titleText) {
+  document.getElementById('title').value = titleText;
+}
+
+function goToStep(stepNum) {
+  const errEl = document.getElementById('wizard-error');
+  errEl.style.display = 'none';
+
+  // Validate step before moving forward
+  if (stepNum > state.step) {
+    if (state.step === 1 && !state.category) {
+      errEl.textContent = 'Please choose an issue category to proceed.';
+      errEl.style.display = 'block';
+      return;
+    }
+    if (state.step === 2) {
+      state.location_text = document.getElementById('location_text').value.trim();
+      if (!state.location_text) {
+        errEl.textContent = 'Please provide a street address or nearby landmark.';
+        errEl.style.display = 'block';
+        return;
+      }
+    }
+    if (state.step === 3) {
+      state.title = document.getElementById('title').value.trim();
+      state.description = document.getElementById('description').value.trim();
+      if (!state.title || !state.description) {
+        errEl.textContent = 'Please provide both an issue title and description.';
+        errEl.style.display = 'block';
+        return;
+      }
+    }
+  }
+
+  state.step = stepNum;
+
+  // Update panels
+  document.querySelectorAll('.wizard-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`step-panel-${stepNum}`).classList.add('active');
+
+  // Update Stepper
+  const fill = document.getElementById('connector-fill');
+  fill.style.width = `${((stepNum - 1) / 3) * 100}%`;
+
+  for (let i = 1; i <= 4; i++) {
+    const item = document.getElementById(`step-ind-${i}`);
+    item.classList.remove('active', 'completed');
+    if (i < stepNum) item.classList.add('completed');
+    else if (i === stepNum) item.classList.add('active');
+  }
+
+  // Trigger map resize if moving to Step 2
+  if (stepNum === 2) {
+    setTimeout(initMapIfNeeded, 200);
+  }
+
+  // Populate Review on Step 4
+  if (stepNum === 4) {
+    populateReview();
+  }
+
+  window.scrollTo({ top: 120, behavior: 'smooth' });
+}
+
+function initMapIfNeeded() {
+  if (wizardMap) {
+    wizardMap.invalidateSize();
+    return;
+  }
+
+  // Default center: India (Delhi 28.6139, 77.2090)
+  const defaultLat = 28.6139;
+  const defaultLng = 77.2090;
+
+  wizardMap = L.map('wizard-map').setView([defaultLat, defaultLng], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap'
+  }).addTo(wizardMap);
+
+  wizardMap.on('click', (e) => {
+    setMapPin(e.latlng.lat, e.latlng.lng);
+  });
+}
+
+function setMapPin(lat, lng) {
+  state.latitude = lat.toFixed(6);
+  state.longitude = lng.toFixed(6);
+
+  if (mapMarker) {
+    mapMarker.setLatLng([lat, lng]);
+  } else {
+    mapMarker = L.marker([lat, lng], { draggable: true }).addTo(wizardMap);
+    mapMarker.on('dragend', (e) => {
+      const pos = e.target.getLatLng();
+      setMapPin(pos.lat, pos.lng);
+    });
+  }
+
+  document.getElementById('location-badge').style.display = 'block';
+  document.getElementById('coords-text').textContent = `${state.latitude}, ${state.longitude}`;
+
+  checkDuplicates();
+}
+
+function useCurrentLocation() {
+  const statusEl = document.getElementById('geo-status');
+  if (!navigator.geolocation) {
+    statusEl.textContent = '❌ Geolocation not supported by your browser.';
+    return;
+  }
+  statusEl.textContent = '⏳ Locating…';
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      initMapIfNeeded();
+      wizardMap.setView([lat, lng], 16);
+      setMapPin(lat, lng);
+      statusEl.textContent = '✅ Location acquired!';
+      setTimeout(() => { statusEl.textContent = ''; }, 3000);
+    },
+    (err) => {
+      statusEl.textContent = '⚠️ Unable to fetch GPS. Please click on the map to pin.';
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+async function checkDuplicates() {
+  if (!state.latitude || !state.longitude || !state.category) return;
+  try {
+    const res = await API.get(
+      `/api/grievances/check-duplicates?category=${encodeURIComponent(state.category)}&latitude=${state.latitude}&longitude=${state.longitude}&radius_km=0.75`
+    );
+    const warnBox = document.getElementById('duplicate-warning');
+    const list = document.getElementById('duplicate-list');
+
+    if (res.ok && res.data && res.data.count > 0) {
+      list.innerHTML = res.data.duplicates.map(d => `
+        <li>
+          <strong>${d.grievance_id}</strong>: ${d.title} (~${d.distance_m}m away, Status: <em>${d.status}</em>)
+        </li>
+      `).join('');
+      warnBox.style.display = 'block';
+    } else {
+      warnBox.style.display = 'none';
+    }
+  } catch(e) {}
+}
+
+function handleImageSelected(input) {
+  if (input.files && input.files[0]) {
+    const file = input.files[0];
+    if (file.size > 5 * 1024 * 1024) {
+      Toast.error('File size exceeds 5MB limit.');
+      input.value = '';
+      return;
+    }
+    state.imageFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      document.getElementById('image-preview-el').src = e.target.result;
+      document.getElementById('image-preview-wrap').style.display = 'inline-block';
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function removeImage() {
+  state.imageFile = null;
+  document.getElementById('image-input').value = '';
+  document.getElementById('image-preview-wrap').style.display = 'none';
+}
+
+function populateReview() {
+  document.getElementById('rev-category').innerHTML = `${categoryIcon(state.category)} <strong>${state.category}</strong>`;
+  document.getElementById('rev-sla').innerHTML = priorityBadge(state.priority);
+  document.getElementById('rev-address').textContent = state.location_text || '—';
+  document.getElementById('rev-coords').textContent = (state.latitude && state.longitude) ? `${state.latitude}, ${state.longitude}` : 'None pinned';
+  document.getElementById('rev-title').textContent = state.title;
+  document.getElementById('rev-desc').textContent = state.description;
+
+  const photoRow = document.getElementById('rev-photo-row');
+  if (state.imageFile) {
+    document.getElementById('rev-photo-img').src = document.getElementById('image-preview-el').src;
+    photoRow.style.display = 'flex';
+  } else {
+    photoRow.style.display = 'none';
+  }
+}
+
+async function submitGrievance() {
+  const submitBtn = document.getElementById('submit-btn');
+  setLoading(submitBtn, true);
+
+  const fd = new FormData();
+  fd.append('title', state.title);
+  fd.append('description', state.description);
+  fd.append('category', state.category);
+  fd.append('priority', state.priority);
+  fd.append('location_text', state.location_text);
+  fd.append('latitude', state.latitude || '');
+  fd.append('longitude', state.longitude || '');
+
+  if (state.imageFile) {
+    fd.append('image', state.imageFile);
+  }
+
+  try {
+    const res = await API.postForm('/api/grievances', fd);
+    setLoading(submitBtn, false);
+
+    if (res.ok && res.data && res.data.grievance_id) {
+      const gid = res.data.grievance_id;
+      document.getElementById('wizard-box').style.display = 'none';
+      document.getElementById('final-tracking-id').textContent = gid;
+      document.getElementById('btn-track-success').href = `/track?id=${gid}`;
+      document.getElementById('success-screen').style.display = 'block';
+
+      // Save to recent
+      try {
+        let rec = JSON.parse(localStorage.getItem('nm_recent_grievances') || '[]');
+        rec.unshift(gid);
+        localStorage.setItem('nm_recent_grievances', JSON.stringify(rec.slice(0, 5)));
+      } catch(e) {}
+
+      Toast.success('Grievance filed successfully!');
+      window.scrollTo({ top: 100, behavior: 'smooth' });
+    } else {
+      const msg = res.data?.error || 'Failed to submit grievance. Please try again.';
+      document.getElementById('wizard-error').textContent = msg;
+      document.getElementById('wizard-error').style.display = 'block';
+      goToStep(1);
+    }
+  } catch(err) {
+    setLoading(submitBtn, false);
+    document.getElementById('wizard-error').textContent = 'Network error occurred while submitting.';
+    document.getElementById('wizard-error').style.display = 'block';
+  }
+}
+
+function copyTrackingId() {
+  const idText = document.getElementById('final-tracking-id').textContent;
+  navigator.clipboard.writeText(idText).then(() => {
+    Toast.success('Tracking ID copied to clipboard!');
+  }).catch(() => {
+    Toast.info(`ID: ${idText}`);
+  });
+}
+
+function resetWizard() {
+  state.step = 1;
+  state.category = '';
+  state.latitude = '';
+  state.longitude = '';
+  state.location_text = '';
+  state.title = '';
+  state.description = '';
+  state.imageFile = null;
+
+  document.getElementById('location_text').value = '';
+  document.getElementById('title').value = '';
+  document.getElementById('description').value = '';
+  removeImage();
+
+  document.querySelectorAll('.category-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('btn-next-1').disabled = true;
+  document.getElementById('priority-box').style.display = 'none';
+  document.getElementById('location-badge').style.display = 'none';
+  document.getElementById('duplicate-warning').style.display = 'none';
+
+  document.getElementById('success-screen').style.display = 'none';
+  document.getElementById('wizard-box').style.display = 'block';
+  goToStep(1);
+}
+</script>
+</body>
+</html>

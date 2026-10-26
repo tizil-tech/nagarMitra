@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Feedback — NagarMitra</title>
+  <meta name="description" content="View citizen feedback and ratings for resolved civic grievances on NagarMitra."/>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+  <style>
+    .feedback-card {
+      background:var(--bg-card);border-radius:var(--radius-md);
+      border:1px solid var(--border);padding:1.25rem;
+    }
+    .stars { color:#f59e0b; font-size:1.1rem; }
+    .rating-bar-row { display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem; }
+    .rating-bar { flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden; }
+    .rating-bar-fill { height:100%;background:#f59e0b;border-radius:4px;transition:width .6s; }
+    .big-rating { font-family:'Poppins',sans-serif;font-size:4rem;font-weight:800;line-height:1;color:var(--text-primary); }
+  </style>
+</head>
+<body>
+<nav class="navbar">
+  <a href="/" class="nav-brand"><div class="logo-icon">NM</div><span class="brand-name">NagarMitra</span></a>
+  <button class="hamburger" id="hamburger-btn"><span></span><span></span><span></span></button>
+  <ul class="nav-links" id="nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/track">Track</a></li>
+    <li><a href="/dashboard">Dashboard</a></li>
+    <li><a href="/campaigns">Campaigns</a></li>
+    <li><a href="/departments">Departments</a></li>
+    <li><a href="/feedback">Feedback</a></li>
+  </ul>
+  <div class="nav-actions">
+    <div id="nav-user-info"></div>
+    <a href="/report-grievance" class="btn btn-accent btn-sm" id="nav-report-btn" style="display:none">+ Report</a>
+    <a href="/login" class="btn btn-primary btn-sm" id="nav-login-btn">Login</a>
+    <button class="btn btn-ghost btn-sm" id="nav-logout-btn" style="display:none">Logout</button>
+  </div>
+</nav>
+
+<div class="page-header">
+  <div class="container">
+    <h1>⭐ Citizen Feedback</h1>
+    <p>Ratings and reviews from citizens about resolved civic grievances</p>
+  </div>
+</div>
+
+<section class="section">
+  <div class="container">
+    <div style="display:grid;grid-template-columns:300px 1fr;gap:2rem;align-items:start">
+      <!-- Rating Summary -->
+      <div>
+        <div class="card card-elevated" style="padding:2rem;text-align:center;margin-bottom:1.5rem">
+          <div class="big-rating" id="avg-rating">—</div>
+          <div class="stars" id="avg-stars"></div>
+          <div class="text-muted text-sm mt-1" id="total-reviews">Loading…</div>
+        </div>
+
+        <div class="card" style="padding:1.25rem">
+          <h4 style="font-weight:700;margin-bottom:1rem">Rating Breakdown</h4>
+          <div id="rating-bars">
+            ${[5,4,3,2,1].map(n => `
+              <div class="rating-bar-row">
+                <span class="stars" style="font-size:.85rem;width:20px">${n}★</span>
+                <div class="rating-bar"><div class="rating-bar-fill" id="bar-${n}" style="width:0%"></div></div>
+                <span class="text-sm text-muted" id="count-${n}">0</span>
+              </div>`).join('')}
+          </div>
+        </div>
+      </div>
+
+      <!-- Feedback List -->
+      <div>
+        <div class="flex justify-between items-center mb-2">
+          <h2 style="font-family:'Poppins',sans-serif;font-size:1.25rem;font-weight:700">All Reviews</h2>
+          <select class="form-control form-select" id="sort-select" style="width:auto;font-size:.85rem">
+            <option value="newest">Newest First</option>
+            <option value="highest">Highest Rating</option>
+            <option value="lowest">Lowest Rating</option>
+          </select>
+        </div>
+        <div id="feedback-list">
+          <div class="text-center" style="padding:2rem"><div class="spinner" style="margin:0 auto"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div class="footer-bottom"><p>© 2026 NagarMitra — Civic Technology for India</p></div>
+  </div>
+</footer>
+
+<script src="/static/js/main.js"></script>
+<script>
+let allFeedback = [];
+
+async function init() {
+  Auth.loadUser().then(u => { Nav.render(); Nav.highlightActive(); Nav.setupHamburger(); });
+  loadFeedback();
+}
+
+async function loadFeedback() {
+  const res = await API.get('/api/feedback');
+  if (!res.ok) {
+    document.getElementById('feedback-list').innerHTML = `<div class="alert alert-error">Failed to load feedback</div>`;
+    return;
+  }
+  allFeedback = res.data.data || [];
+  renderStats();
+  renderFeedback(allFeedback);
+}
+
+function renderStats() {
+  const total = allFeedback.length;
+  const sum   = allFeedback.reduce((s, f) => s + parseInt(f.rating), 0);
+  const avg   = total ? (sum / total).toFixed(1) : 0;
+
+  document.getElementById('avg-rating').textContent = avg || '—';
+  document.getElementById('avg-stars').textContent  = avg ? '★'.repeat(Math.round(avg)) + '☆'.repeat(5 - Math.round(avg)) : '';
+  document.getElementById('total-reviews').textContent = `${total} review${total !== 1 ? 's' : ''}`;
+
+  // Rating bars
+  const counts = {1:0,2:0,3:0,4:0,5:0};
+  allFeedback.forEach(f => counts[parseInt(f.rating)] = (counts[parseInt(f.rating)] || 0) + 1);
+  [1,2,3,4,5].forEach(n => {
+    const pct = total ? Math.round((counts[n] / total) * 100) : 0;
+    document.getElementById(`bar-${n}`).style.width   = pct + '%';
+    document.getElementById(`count-${n}`).textContent = counts[n];
+  });
+}
+
+function renderFeedback(feedback) {
+  const list = document.getElementById('feedback-list');
+  if (!feedback.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">⭐</div><h3>No feedback yet</h3><p>Feedback is submitted by citizens after their grievances are resolved.</p></div>`;
+    return;
+  }
+  list.innerHTML = feedback.map(f => `
+    <div class="feedback-card mb-2">
+      <div class="flex justify-between items-center mb-1">
+        <div class="stars">${'★'.repeat(+f.rating)}${'☆'.repeat(5-+f.rating)}</div>
+        <span class="text-sm text-muted">${formatDate(f.created_at)}</span>
+      </div>
+      <div class="text-sm font-bold mb-1">
+        Grievance: <a href="/grievance-details?id=${f.grievance_id}" style="font-family:monospace">${f.grievance_id}</a>
+      </div>
+      ${f.comments ? `<p class="text-sm" style="color:var(--text-secondary)">${f.comments}</p>` : `<p class="text-sm text-muted"><em>No comments provided.</em></p>`}
+    </div>`).join('');
+}
+
+document.getElementById('sort-select').addEventListener('change', (e) => {
+  let sorted = [...allFeedback];
+  if (e.target.value === 'newest')  sorted.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+  if (e.target.value === 'highest') sorted.sort((a,b) => +b.rating - +a.rating);
+  if (e.target.value === 'lowest')  sorted.sort((a,b) => +a.rating - +b.rating);
+  renderFeedback(sorted);
+});
+
+init();
+</script>
+</body>
+</html>

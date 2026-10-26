@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard — NagarMitra</title>
+  <meta name="description" content="NagarMitra dashboard to manage and track civic grievances."/>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+  <style>
+    .role-label {
+      display:inline-flex;align-items:center;gap:.4rem;
+      padding:.25rem .75rem;border-radius:999px;font-size:.78rem;
+      font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+    }
+    .role-citizen  { background:#dbeafe; color:#1d4ed8; }
+    .role-official { background:#fef3c7; color:#92400e; }
+    .role-admin    { background:#fce7f3; color:#9d174d; }
+    .dashboard-layout { display:grid; grid-template-columns:220px 1fr; gap:2rem; align-items:start; }
+    .sidebar-nav { display:flex; flex-direction:column; gap:.25rem; }
+    .sidebar-link {
+      display:flex;align-items:center;gap:.6rem;
+      padding:.55rem .85rem;border-radius:var(--radius-sm);
+      color:var(--text-secondary);font-weight:500;font-size:.88rem;
+      cursor:pointer;transition:all var(--transition);border:none;
+      background:transparent;text-align:left;width:100%;
+    }
+    .sidebar-link:hover,.sidebar-link.active {
+      background:var(--primary-light);color:var(--primary);
+    }
+    @media(max-width:900px) {
+      .dashboard-layout { grid-template-columns:1fr; }
+      .sidebar-nav { flex-direction:row;flex-wrap:wrap; }
+    }
+  </style>
+</head>
+<body>
+<nav class="navbar">
+  <a href="/" class="nav-brand"><div class="logo-icon">NM</div><span class="brand-name">NagarMitra</span></a>
+  <button class="hamburger" id="hamburger-btn"><span></span><span></span><span></span></button>
+  <ul class="nav-links" id="nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/track">Track</a></li>
+    <li><a href="/dashboard">Dashboard</a></li>
+    <li><a href="/campaigns">Campaigns</a></li>
+    <li><a href="/departments">Departments</a></li>
+    <li><a href="/feedback">Feedback</a></li>
+  </ul>
+  <div class="nav-actions">
+    <div id="nav-user-info"></div>
+    <a href="/report-grievance" class="btn btn-accent btn-sm" id="nav-report-btn" style="display:none">+ Report</a>
+    <a href="/login" class="btn btn-primary btn-sm" id="nav-login-btn">Login</a>
+    <button class="btn btn-ghost btn-sm" id="nav-logout-btn" style="display:none">Logout</button>
+  </div>
+</nav>
+
+<div class="page-header">
+  <div class="container">
+    <div class="flex items-center gap-2" style="flex-wrap:wrap">
+      <h1 id="dashboard-title">Dashboard</h1>
+      <span id="role-badge" class="role-label"></span>
+    </div>
+    <p class="mt-1" id="dashboard-subtitle">Loading your dashboard…</p>
+  </div>
+</div>
+
+<section class="section">
+  <div class="container">
+    <div id="auth-redirect" class="card" style="max-width:420px;margin:0 auto;display:none">
+      <div class="card-body text-center" style="padding:3rem">
+        <div style="font-size:3rem;margin-bottom:1rem">🔐</div>
+        <h2 style="font-weight:700;margin-bottom:.5rem">Login Required</h2>
+        <p class="text-muted mb-3">Please login to view your dashboard.</p>
+        <a href="/login" class="btn btn-primary">Go to Login</a>
+      </div>
+    </div>
+
+    <div id="dashboard-content" style="display:none">
+      <!-- Stats -->
+      <div class="stats-grid mb-3" id="dash-stats"></div>
+
+      <div class="dashboard-layout">
+        <!-- Sidebar -->
+        <div class="card" style="padding:1rem">
+          <div class="sidebar-nav" id="sidebar-nav"></div>
+        </div>
+
+        <!-- Main Content -->
+        <div id="main-panel">
+          <div class="card">
+            <div class="card-body">
+              <div class="spinner" style="margin:2rem auto;display:block"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Status Update Modal (for officials/admin) -->
+<div id="status-modal" class="modal-backdrop" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Update Grievance Status</span>
+      <button class="modal-close" id="status-modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="text-sm text-muted mb-2">Grievance: <strong id="modal-gid"></strong></p>
+      <div class="form-group mb-2">
+        <label class="form-label">New Status</label>
+        <select id="modal-status" class="form-control form-select">
+          <option>Submitted</option><option>Under Review</option><option>Assigned</option>
+          <option>In Progress</option><option>Resolved</option><option>Rejected</option>
+        </select>
+      </div>
+      <div class="form-group mb-2">
+        <label class="form-label">Remarks</label>
+        <textarea id="modal-remarks" class="form-control" rows="3" placeholder="Add progress notes or resolution details…"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="status-modal-cancel">Cancel</button>
+      <button class="btn btn-primary" id="status-modal-save">Update Status</button>
+    </div>
+  </div>
+</div>
+
+<!-- Assign Modal (admin) -->
+<div id="assign-modal" class="modal-backdrop" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Assign Grievance</span>
+      <button class="modal-close" id="assign-modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="text-sm text-muted mb-2">Grievance: <strong id="assign-gid"></strong></p>
+      <div class="form-group mb-2">
+        <label class="form-label">Department</label>
+        <select id="assign-dept" class="form-control form-select">
+          <option value="">Select department…</option>
+        </select>
+      </div>
+      <div class="form-group mb-2">
+        <label class="form-label">Assign to Official</label>
+        <select id="assign-official" class="form-control form-select">
+          <option value="">No specific official</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="assign-modal-cancel">Cancel</button>
+      <button class="btn btn-primary" id="assign-modal-save">Assign</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/main.js"></script>
+<script>
+let currentUser = null;
+let currentPanel = 'my-grievances';
+let allDepts = [], allUsers = [];
+
+// ─── Main init ───────────────────────────────────────────────────────────────
+async function initDashboard() {
+  currentUser = await Auth.loadUser();
+  Nav.render();
+  Nav.highlightActive();
+  Nav.setupHamburger();
+
+  if (!currentUser) {
+    document.getElementById('auth-redirect').style.display = 'block';
+    return;
+  }
+  document.getElementById('dashboard-content').style.display = 'block';
+
+  // Role badge
+  const roleBadge = document.getElementById('role-badge');
+  roleBadge.className = `role-label role-${currentUser.role}`;
+  roleBadge.textContent = currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
+
+  document.getElementById('dashboard-title').textContent = `${currentUser.name}'s Dashboard`;
+  document.getElementById('dashboard-subtitle').textContent = roleSubtitle(currentUser.role);
+
+  await loadStats();
+  buildSidebar();
+  await loadDepts();
+  if (currentUser.role === 'admin') await loadUsers();
+  loadPanel('my-grievances');
+}
+
+function roleSubtitle(role) {
+  const map = {
+    citizen:  'Track and manage your civic complaints',
+    official: 'Review and resolve assigned grievances',
+    admin:    'Platform-wide management and oversight',
+  };
+  return map[role] || '';
+}
+
+// ─── Stats ───────────────────────────────────────────────────────────────────
+async function loadStats() {
+  const res = await API.get('/api/dashboard/stats');
+  if (!res.ok) return;
+  const s = res.data;
+  const container = document.getElementById('dash-stats');
+
+  if (currentUser.role === 'citizen') {
+    container.innerHTML = statCards([
+      { label:'My Total', value:s.my_total??0, icon:'📋', cls:''},
+      { label:'Resolved', value:s.my_resolved??0, icon:'✅', cls:'success'},
+      { label:'Pending',  value:s.my_pending??0,  icon:'⏳', cls:'warning'},
+      { label:'Platform Total', value:s.total_grievances??0, icon:'🏛️', cls:'info'},
+    ]);
+  } else if (currentUser.role === 'official') {
+    container.innerHTML = statCards([
+      { label:'Assigned to Dept', value:s.assigned_total??0,    icon:'📋', cls:''},
+      { label:'Resolved',         value:s.assigned_resolved??0, icon:'✅', cls:'success'},
+      { label:'Pending',          value:s.assigned_pending??0,  icon:'⏳', cls:'warning'},
+      { label:'Platform Total',   value:s.total_grievances??0,  icon:'🏛️', cls:'info'},
+    ]);
+  } else {
+    container.innerHTML = statCards([
+      { label:'Total Grievances', value:s.total_grievances??0, icon:'📋', cls:''},
+      { label:'Resolved',         value:s.resolved??0,         icon:'✅', cls:'success'},
+      { label:'Pending',          value:s.pending??0,          icon:'⏳', cls:'warning'},
+      { label:'In Progress',      value:s.in_progress??0,      icon:'🔧', cls:'info'},
+      { label:'Citizens',         value:s.total_users??0,      icon:'👥', cls:'accent'},
+      { label:'Campaigns',        value:s.active_campaigns??0, icon:'📢', cls:''},
+    ]);
+  }
+}
+
+function statCards(items) {
+  return items.map(({label,value,icon,cls}) => `
+    <div class="stat-card ${cls}">
+      <div class="stat-icon">${icon}</div>
+      <div class="stat-value">${value}</div>
+      <div class="stat-label">${label}</div>
+    </div>`).join('');
+}
+
+// ─── Sidebar ─────────────────────────────────────────────────────────────────
+function buildSidebar() {
+  const nav = document.getElementById('sidebar-nav');
+  const links = getSidebarLinks();
+  nav.innerHTML = links.map(l => `
+    <button class="sidebar-link" data-panel="${l.panel}" onclick="loadPanel('${l.panel}')">
+      ${l.icon} ${l.label}
+    </button>`).join('');
+}
+
+function getSidebarLinks() {
+  if (currentUser.role === 'citizen') return [
+    { panel:'my-grievances',  icon:'📋', label:'My Grievances' },
+    { panel:'track',          icon:'🔍', label:'Track Grievance' },
+    { panel:'campaigns',      icon:'📢', label:'My Campaigns' },
+  ];
+  if (currentUser.role === 'official') return [
+    { panel:'my-grievances',  icon:'📋', label:'My Queue' },
+    { panel:'resolved',       icon:'✅', label:'Resolved' },
+    { panel:'overdue',        icon:'⚠️', label:'Overdue' },
+  ];
+  return [
+    { panel:'my-grievances',  icon:'📋', label:'All Grievances' },
+    { panel:'unassigned',     icon:'📌', label:'Unassigned' },
+    { panel:'users',          icon:'👥', label:'Manage Users' },
+    { panel:'departments',    icon:'🏛️', label:'Departments' },
+    { panel:'campaigns-admin',icon:'📢', label:'Campaigns' },
+  ];
+}
+
+// ─── Panel Loader ─────────────────────────────────────────────────────────────
+async function loadPanel(panel) {
+  currentPanel = panel;
+  document.querySelectorAll('.sidebar-link').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.panel === panel);
+  });
+
+  const main = document.getElementById('main-panel');
+  main.innerHTML = `<div class="card"><div class="card-body"><div class="spinner" style="margin:2rem auto;display:block"></div></div></div>`;
+
+  switch (panel) {
+    case 'my-grievances':   return renderGrievancePanel(main);
+    case 'track':           return renderTrackPanel(main);
+    case 'campaigns':       return renderMyCampaigns(main);
+    case 'resolved':        return renderGrievancePanel(main, 'Resolved');
+    case 'overdue':         return renderGrievancePanel(main, null, true);
+    case 'unassigned':      return renderGrievancePanel(main, 'Submitted');
+    case 'users':           return renderUsersPanel(main);
+    case 'departments':     return renderDeptsPanel(main);
+    case 'campaigns-admin': return renderCampaignsAdmin(main);
+    default: main.innerHTML = `<div class="empty-state"><div class="empty-icon">🚧</div><h3>Coming Soon</h3></div>`;
+  }
+}
+
+// ─── Grievance List Panel ─────────────────────────────────────────────────────
+async function renderGrievancePanel(container, filterStatus = null, overdue = false) {
+  let url = `/api/grievances?per_page=50`;
+  if (currentUser.role === 'citizen') url += `&citizen_id=${currentUser.user_id}`;
+  if (filterStatus) url += `&status=${encodeURIComponent(filterStatus)}`;
+
+  const res = await API.get(url);
+  if (!res.ok) { container.innerHTML = errorCard('Failed to load grievances'); return; }
+
+  let rows = res.data.data || [];
+
+  if (overdue) {
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    rows = rows.filter(g => new Date(g.created_at).getTime() < cutoff && !['Resolved','Rejected'].includes(g.status));
+  }
+
+  container.innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">${panelTitle()} <span class="badge badge-submitted" style="margin-left:.5rem">${rows.length}</span></span>
+        ${currentUser.role === 'citizen' ? `<a href="/report-grievance" class="btn btn-accent btn-sm">+ New</a>` : ''}
+      </div>
+      <div class="card-body" style="padding:.75rem">
+        ${rows.length === 0 ? `
+          <div class="empty-state">
+            <div class="empty-icon">📋</div>
+            <h3>No grievances found</h3>
+            <p>No complaints match this view.</p>
+            ${currentUser.role === 'citizen' ? `<a href="/report-grievance" class="btn btn-accent btn-sm mt-2">Report a Grievance</a>` : ''}
+          </div>` :
+          (currentUser.role === 'citizen' ?
+            `<div class="citizen-cards-view">
+              ${rows.map(g => citizenGrievanceCard(g)).join('')}
+             </div>
+             <div class="table-wrapper citizen-table-view">
+              <table>
+                <thead><tr>
+                  <th>ID</th><th>Title</th><th>Category</th>
+                  <th>Status</th><th>Priority</th><th>Date</th><th>Actions</th>
+                </tr></thead>
+                <tbody>${rows.map(g => grievanceRow(g)).join('')}</tbody>
+              </table>
+            </div>` :
+            `<div class="table-wrapper">
+              <table>
+                <thead><tr>
+                  <th>ID</th><th>Title</th><th>Category</th>
+                  <th>Status</th><th>Priority</th><th>Date</th><th>Actions</th>
+                </tr></thead>
+                <tbody>${rows.map(g => grievanceRow(g)).join('')}</tbody>
+              </table>
+            </div>`
+          )
+        }
+      </div>
+    </div>`;
+}
+
+function panelTitle() {
+  const map = {
+    'my-grievances': currentUser.role === 'citizen' ? 'My Grievances' : 'Grievance Queue',
+    'resolved': 'Resolved Grievances', 'overdue': 'Overdue Grievances',
+    'unassigned': 'Unassigned Complaints',
+  };
+  return map[currentPanel] || 'Grievances';
+}
+
+function citizenGrievanceCard(g) {
+  return `
+    <div class="grievance-card-item">
+      <div class="flex justify-between items-center mb-1">
+        <span class="text-xs font-mono font-bold" style="color:var(--primary)">${g.grievance_id}</span>
+        ${statusBadge(g.status)}
+      </div>
+      <h4 style="font-size:0.95rem;font-weight:600;margin-bottom:0.25rem">${g.title}</h4>
+      <div class="text-xs text-muted mb-2 flex items-center gap-2">
+        <span>${categoryIcon(g.category)} ${g.category}</span>
+        <span>•</span>
+        <span>${formatDate(g.created_at)}</span>
+      </div>
+      <div class="flex justify-between items-center pt-2" style="border-top:1px solid var(--border-color)">
+        <span class="text-xs">${priorityBadge(g.priority)}</span>
+        <div style="display:flex;gap:0.4rem">
+          <a href="/grievance-details?id=${g.grievance_id}" class="btn btn-ghost btn-sm">Details</a>
+          <a href="/track?id=${g.grievance_id}" class="btn btn-primary btn-sm">Track →</a>
+        </div>
+      </div>
+    </div>`;
+}
+
+function grievanceRow(g) {
+  const isOffOrAdmin = currentUser.role !== 'citizen';
+  const actions = isOffOrAdmin
+    ? `<button class="btn btn-primary btn-sm" onclick="openStatusModal('${g.grievance_id}','${g.status}')">Update</button>`
+    : '';
+  return `<tr>
+    <td><a href="/grievance-details?id=${g.grievance_id}" class="text-sm" style="font-family:monospace;font-weight:600">${g.grievance_id}</a></td>
+    <td><a href="/grievance-details?id=${g.grievance_id}">${g.title}</a></td>
+    <td><span>${categoryIcon(g.category)} ${g.category}</span></td>
+    <td>${statusBadge(g.status)}</td>
+    <td>${priorityBadge(g.priority)}</td>
+    <td class="text-sm text-muted">${formatDate(g.created_at)}</td>
+    <td style="display:flex;gap:.4rem;flex-wrap:wrap">
+      <a href="/grievance-details?id=${g.grievance_id}" class="btn btn-ghost btn-sm">View</a>
+      ${actions}
+      ${currentUser.role === 'admin' ? `<button class="btn btn-outline btn-sm" onclick="openAssignModal('${g.grievance_id}')">Assign</button>` : ''}
+    </td>
+  </tr>`;
+}
+
+// ─── Track Panel ─────────────────────────────────────────────────────────────
+function renderTrackPanel(container) {
+  container.innerHTML = `
+    <div class="card">
+      <div class="card-header"><span class="card-title">🔍 Track Grievance</span></div>
+      <div class="card-body">
+        <p class="text-muted text-sm mb-2">Enter your Grievance ID to view status</p>
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+          <input type="text" id="track-input" class="form-control" placeholder="e.g. GRV-20261026-ABC123" style="flex:1;min-width:200px"/>
+          <button class="btn btn-primary" onclick="trackGrievance()">Track</button>
+        </div>
+        <div id="track-result" class="mt-3"></div>
+      </div>
+    </div>`;
+}
+
+async function trackGrievance() {
+  const id  = document.getElementById('track-input').value.trim().toUpperCase();
+  const out = document.getElementById('track-result');
+  if (!id) { out.innerHTML = `<p class="text-muted">Please enter a Grievance ID.</p>`; return; }
+  out.innerHTML = `<div class="spinner"></div>`;
+  const res = await API.get(`/api/grievances/${id}`);
+  if (!res.ok) { out.innerHTML = `<div class="alert alert-error">Grievance not found.</div>`; return; }
+  const g = res.data.grievance;
+  out.innerHTML = `
+    <div class="card" style="margin-top:.5rem">
+      <div class="card-body">
+        <div class="flex justify-between items-center mb-2">
+          <h3 style="font-weight:700">${g.title}</h3>
+          ${statusBadge(g.status)}
+        </div>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:.82rem;color:var(--text-muted);margin-bottom:1rem">
+          <span>📁 ${g.category}</span>
+          <span>📅 ${formatDate(g.created_at)}</span>
+          ${g.location_text ? `<span>📍 ${g.location_text}</span>` : ''}
+        </div>
+        <p class="text-sm">${g.description}</p>
+        <div class="mt-2 text-right">
+          <a href="/grievance-details?id=${g.grievance_id}" class="btn btn-primary btn-sm">Full Details →</a>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ─── Campaigns Panel ──────────────────────────────────────────────────────────
+async function renderMyCampaigns(container) {
+  const res = await API.get('/api/campaigns');
+  if (!res.ok) { container.innerHTML = errorCard(); return; }
+  const campaigns = res.data.data || [];
+  container.innerHTML = `
+    <div class="card">
+      <div class="card-header"><span class="card-title">📢 Campaigns</span></div>
+      <div class="card-body">
+        ${campaigns.length === 0 ? `<div class="empty-state"><div class="empty-icon">📢</div><h3>No campaigns</h3></div>` :
+          campaigns.map(c => `
+            <div class="card" style="margin-bottom:1rem;padding:1rem">
+              <div class="flex justify-between items-center">
+                <div>
+                  <strong>${c.title}</strong>
+                  <div class="text-sm text-muted">${c.location} · ${formatDate(c.start_date)} – ${formatDate(c.end_date)}</div>
+                </div>
+                <div style="display:flex;gap:.5rem;align-items:center">
+                  <span class="badge badge-active">${c.participant_count} joined</span>
+                  <button class="btn btn-outline btn-sm" onclick="joinCampaign('${c.campaign_id}', this)">Join</button>
+                </div>
+              </div>
+              <p class="text-sm text-muted mt-1">${c.description}</p>
+            </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+async function joinCampaign(id, btn) {
+  setLoading(btn, true);
+  const res = await API.post(`/api/campaigns/${id}/join`);
+  setLoading(btn, false);
+  if (res.ok) { Toast.success('Joined campaign!'); btn.textContent = 'Joined'; btn.disabled = true; }
+  else Toast.error(res.data.error || 'Could not join campaign');
+}
+
+// ─── Users Panel (Admin) ──────────────────────────────────────────────────────
+async function renderUsersPanel(container) {
+  const res = await API.get('/api/users');
+  if (!res.ok) { container.innerHTML = errorCard('Failed to load users'); return; }
+  const users = res.data.data || [];
+  container.innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">👥 Users <span class="badge badge-submitted">${users.length}</span></span>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Department</th><th>Active</th><th>Actions</th></tr></thead>
+          <tbody>${users.map(u => `
+            <tr>
+              <td>${u.name}</td>
+              <td class="text-sm">${u.email}</td>
+              <td><span class="badge role-${u.role}">${u.role}</span></td>
+              <td class="text-sm">${u.department_id || '—'}</td>
+              <td>${u.is_active === 'true' ? '✅' : '❌'}</td>
+              <td>
+                <select class="form-control form-select" style="width:auto;font-size:.8rem;padding:.3rem .6rem"
+                  onchange="updateUserRole('${u.user_id}', this.value)">
+                  <option ${u.role==='citizen'?'selected':''}>citizen</option>
+                  <option ${u.role==='official'?'selected':''}>official</option>
+                  <option ${u.role==='admin'?'selected':''}>admin</option>
+                </select>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+async function updateUserRole(userId, role) {
+  const deptId = role === 'official' ? prompt('Enter department ID (e.g., D001):') || '' : '';
+  const res = await API.patch(`/api/users/${userId}`, { role, department_id: deptId });
+  if (res.ok) Toast.success('User updated!'); else Toast.error('Update failed');
+}
+
+// ─── Departments Panel (Admin) ────────────────────────────────────────────────
+async function renderDeptsPanel(container) {
+  const res = await API.get('/api/departments');
+  const depts = res.ok ? res.data.data : [];
+  container.innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🏛️ Departments</span>
+        <button class="btn btn-primary btn-sm" onclick="createDept()">+ Add Department</button>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>ID</th><th>Name</th><th>Jurisdiction</th><th>Categories</th></tr></thead>
+          <tbody>${depts.map(d => `
+            <tr>
+              <td style="font-family:monospace;font-size:.82rem">${d.department_id}</td>
+              <td><strong>${d.department_name}</strong><div class="text-sm text-muted">${d.description}</div></td>
+              <td>${d.jurisdiction}</td>
+              <td class="text-sm">${d.categories}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+async function createDept() {
+  const name = prompt('Department name:');
+  if (!name) return;
+  const desc = prompt('Description:') || '';
+  const cats = prompt('Categories (comma-separated):') || '';
+  const res = await API.post('/api/departments', { department_name: name, description: desc, categories: cats });
+  if (res.ok) { Toast.success('Department created!'); loadPanel('departments'); }
+  else Toast.error(res.data.error);
+}
+
+// ─── Campaigns Admin ──────────────────────────────────────────────────────────
+async function renderCampaignsAdmin(container) {
+  const res = await API.get('/api/campaigns');
+  const campaigns = res.ok ? res.data.data : [];
+  container.innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📢 Campaigns</span>
+        <button class="btn btn-accent btn-sm" onclick="createCampaign()">+ New Campaign</button>
+      </div>
+      <div class="card-body">
+        ${campaigns.map(c => `
+          <div class="card mb-2" style="padding:1rem">
+            <div class="flex justify-between items-center">
+              <strong>${c.title}</strong>
+              <span class="badge badge-${c.status.toLowerCase()}">${c.status}</span>
+            </div>
+            <div class="text-sm text-muted">${c.location} · ${formatDate(c.start_date)} – ${formatDate(c.end_date)}</div>
+            <p class="text-sm mt-1">${c.description}</p>
+            <div class="text-sm text-muted mt-1">${c.participant_count} participants</div>
+          </div>`).join('') || '<div class="empty-state"><div class="empty-icon">📢</div><h3>No campaigns yet</h3></div>'}
+      </div>
+    </div>`;
+}
+
+async function createCampaign() {
+  const title = prompt('Campaign title:');
+  if (!title) return;
+  const desc = prompt('Description:') || '';
+  const loc  = prompt('Location:') || '';
+  const start= prompt('Start date (YYYY-MM-DD):') || '';
+  const end  = prompt('End date (YYYY-MM-DD):') || '';
+  const res = await API.post('/api/campaigns', { title, description: desc, location: loc, start_date: start, end_date: end });
+  if (res.ok) { Toast.success('Campaign created!'); loadPanel('campaigns-admin'); }
+  else Toast.error(res.data.error);
+}
+
+// ─── Status Modal ─────────────────────────────────────────────────────────────
+let modalGid = '';
+function openStatusModal(gid, currentStatus) {
+  modalGid = gid;
+  document.getElementById('modal-gid').textContent = gid;
+  document.getElementById('modal-status').value = currentStatus;
+  document.getElementById('modal-remarks').value = '';
+  document.getElementById('status-modal').style.display = 'flex';
+}
+document.getElementById('status-modal-close').onclick  = () => document.getElementById('status-modal').style.display = 'none';
+document.getElementById('status-modal-cancel').onclick = () => document.getElementById('status-modal').style.display = 'none';
+document.getElementById('status-modal-save').addEventListener('click', async () => {
+  const btn = document.getElementById('status-modal-save');
+  setLoading(btn, true);
+  const res = await API.patch(`/api/grievances/${modalGid}/status`, {
+    status:  document.getElementById('modal-status').value,
+    remarks: document.getElementById('modal-remarks').value,
+  });
+  setLoading(btn, false);
+  document.getElementById('status-modal').style.display = 'none';
+  if (res.ok) { Toast.success('Status updated!'); loadPanel(currentPanel); }
+  else Toast.error(res.data.error || 'Update failed');
+});
+
+// ─── Assign Modal (admin) ──────────────────────────────────────────────────────
+let assignGid = '';
+async function openAssignModal(gid) {
+  assignGid = gid;
+  document.getElementById('assign-gid').textContent = gid;
+  // Populate dept dropdown
+  const deptSel = document.getElementById('assign-dept');
+  deptSel.innerHTML = `<option value="">Select department…</option>` +
+    allDepts.map(d => `<option value="${d.department_id}">${d.department_name}</option>`).join('');
+  // Populate official dropdown
+  const offSel = document.getElementById('assign-official');
+  const officials = allUsers.filter(u => u.role === 'official');
+  offSel.innerHTML = `<option value="">No specific official</option>` +
+    officials.map(u => `<option value="${u.user_id}">${u.name} (${u.department_id})</option>`).join('');
+  document.getElementById('assign-modal').style.display = 'flex';
+}
+document.getElementById('assign-modal-close').onclick  = () => document.getElementById('assign-modal').style.display = 'none';
+document.getElementById('assign-modal-cancel').onclick = () => document.getElementById('assign-modal').style.display = 'none';
+document.getElementById('assign-modal-save').addEventListener('click', async () => {
+  const btn = document.getElementById('assign-modal-save');
+  setLoading(btn, true);
+  const res = await API.patch(`/api/grievances/${assignGid}/assign`, {
+    department_id: document.getElementById('assign-dept').value,
+    official_id:   document.getElementById('assign-official').value,
+  });
+  setLoading(btn, false);
+  document.getElementById('assign-modal').style.display = 'none';
+  if (res.ok) { Toast.success('Grievance assigned!'); loadPanel(currentPanel); }
+  else Toast.error(res.data.error || 'Assignment failed');
+});
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+async function loadDepts() {
+  const res = await API.get('/api/departments');
+  allDepts = res.ok ? res.data.data : [];
+}
+async function loadUsers() {
+  const res = await API.get('/api/users');
+  allUsers = res.ok ? res.data.data : [];
+}
+function errorCard(msg = 'Failed to load data') {
+  return `<div class="alert alert-error">${msg}</div>`;
+}
+
+// Click outside modal to close
+document.getElementById('status-modal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('status-modal'))
+    document.getElementById('status-modal').style.display = 'none';
+});
+document.getElementById('assign-modal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('assign-modal'))
+    document.getElementById('assign-modal').style.display = 'none';
+});
+
+initDashboard();
+</script>
+</body>
+</html>

@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Track Grievance — NagarMitra</title>
+  <meta name="description" content="Track your civic grievance in real-time with visual timeline, SLA countdown, and resolution proof on NagarMitra."/>
+  <link rel="manifest" href="/static/manifest.json"/>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    .track-grid {
+      display: grid;
+      grid-template-columns: 3fr 2fr;
+      gap: 2rem;
+      align-items: start;
+    }
+    @media(max-width: 900px) {
+      .track-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    #track-map {
+      height: 280px;
+      border-radius: var(--radius-md);
+      border: 1.5px solid var(--border);
+    }
+    .evidence-thumb {
+      width: 100%;
+      max-height: 240px;
+      object-fit: cover;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: transform var(--transition);
+    }
+    .evidence-thumb:hover {
+      transform: scale(1.02);
+    }
+    .update-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .update-bubble {
+      background: #f8fafc;
+      border-left: 3px solid var(--primary);
+      padding: 0.85rem 1rem;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    }
+    .quick-ids {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.75rem;
+      align-items: center;
+    }
+    .quick-id-chip {
+      font-size: 0.75rem;
+      font-family: monospace;
+      padding: 0.25rem 0.6rem;
+      background: #f1f5f9;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      color: var(--primary);
+      font-weight: 600;
+    }
+    .quick-id-chip:hover {
+      background: var(--primary-light);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════ NAVBAR ═══════════ -->
+<nav class="navbar" aria-label="Main navigation">
+  <a href="/" class="nav-brand">
+    <div class="logo-icon">NM</div>
+    <span class="brand-name">NagarMitra</span>
+  </a>
+
+  <button class="hamburger" id="hamburger-btn" aria-label="Toggle menu">
+    <span></span><span></span><span></span>
+  </button>
+
+  <ul class="nav-links" id="nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/track" class="active">Track</a></li>
+    <li><a href="/dashboard">Dashboard</a></li>
+    <li><a href="/campaigns">Campaigns</a></li>
+    <li><a href="/departments">Departments</a></li>
+    <li><a href="/feedback">Feedback</a></li>
+  </ul>
+
+  <div class="nav-actions">
+    <div id="nav-user-info"></div>
+    <a href="/report-grievance" class="btn btn-accent btn-sm" id="nav-report-btn" style="display:none">+ Report</a>
+    <a href="/login" class="btn btn-primary btn-sm" id="nav-login-btn">Login</a>
+    <button class="btn btn-ghost btn-sm" id="nav-logout-btn" style="display:none">Logout</button>
+  </div>
+</nav>
+
+<!-- ═══════════ HEADER ═══════════ -->
+<div class="page-header">
+  <div class="container text-center">
+    <span class="badge badge-submitted" style="background:rgba(255,255,255,0.15);color:#fff;margin-bottom:.5rem;display:inline-block">Real-time Citizen Grievance Tracker</span>
+    <h1>🔍 Grievance Tracking Portal</h1>
+    <p>Monitor resolution milestones, official updates, SLA deadlines, and photographic evidence</p>
+  </div>
+</div>
+
+<section class="section" style="padding-top:2rem">
+  <div class="container">
+
+    <!-- Search Card -->
+    <div class="track-search-card">
+      <form id="track-search-form" onsubmit="handleTrackSearch(event)">
+        <label for="track-id-input" style="display:block;font-weight:700;margin-bottom:.5rem;font-size:.9rem">
+          Enter Grievance Tracking ID
+        </label>
+        <div class="track-search-input-wrap">
+          <input
+            type="text"
+            id="track-id-input"
+            class="form-control"
+            placeholder="e.g., GRV-20261026-ABC123"
+            style="font-family:monospace;font-size:1rem;font-weight:600;text-transform:uppercase"
+            required
+            autocomplete="off"
+          />
+          <button type="submit" class="btn btn-primary" id="track-search-btn" style="flex-shrink:0">
+            🔍 Track Status
+          </button>
+        </div>
+      </form>
+      <div class="quick-ids" id="recent-ids-container" style="display:none">
+        <span class="text-muted" style="font-size:.78rem">Recent grievances:</span>
+        <div id="recent-chips" style="display:inline-flex;gap:.4rem;flex-wrap:wrap"></div>
+      </div>
+    </div>
+
+    <!-- Alert / Status message -->
+    <div id="track-alert" class="alert alert-error" style="display:none;max-width:680px;margin:0 auto 2rem"></div>
+
+    <!-- Loading spinner -->
+    <div id="track-loading" style="display:none;text-align:center;padding:3rem">
+      <div class="spinner" style="margin:0 auto;width:36px;height:36px;border-width:3px"></div>
+      <p class="text-muted mt-2">Fetching official complaint record…</p>
+    </div>
+
+    <!-- Grievance Content (Hidden until loaded) -->
+    <div id="track-result" style="display:none">
+
+      <!-- Rejected Banner (shown only if status is Rejected) -->
+      <div id="rejected-banner" class="rejected-case-card" style="display:none">
+        <h3>🚫 Case Closed / Rejected</h3>
+        <p id="rejected-remarks">This complaint has been reviewed and closed by the municipal authorities.</p>
+      </div>
+
+      <!-- Overdue Banner (shown only if SLA is breached and not resolved) -->
+      <div id="overdue-banner" class="alert alert-error" style="display:none;margin-bottom:1.5rem">
+        <div style="display:flex;align-items:center;gap:.75rem">
+          <span style="font-size:1.5rem">⚠️</span>
+          <div>
+            <strong>Service Level Agreement (SLA) Notice:</strong>
+            <span id="overdue-text">This complaint has exceeded its targeted resolution timeline. Escalated to senior municipal authorities.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Visual Timeline Card -->
+      <div class="timeline-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem">
+          <div>
+            <h2 id="grievance-title" style="font-size:1.35rem;font-weight:800;color:var(--text-primary);margin-bottom:.2rem">Title</h2>
+            <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+              <span id="grievance-id-badge" style="font-family:monospace;font-weight:700;color:var(--primary);font-size:.9rem">ID</span>
+              <span class="text-muted">•</span>
+              <span id="grievance-cat-badge">Category</span>
+              <span class="text-muted">•</span>
+              <span id="grievance-priority-badge">Priority</span>
+            </div>
+          </div>
+          <div id="grievance-status-pill"></div>
+        </div>
+
+        <!-- 5-Node Visual Timeline -->
+        <div class="timeline-stepper" id="visual-timeline">
+          <div class="timeline-bar-connect">
+            <div class="timeline-bar-fill" id="timeline-fill"></div>
+          </div>
+
+          <div class="timeline-step" id="step-node-submitted">
+            <div class="timeline-step-circle">📝</div>
+            <div class="timeline-step-name">Submitted</div>
+            <div class="timeline-step-time" id="time-submitted">—</div>
+          </div>
+
+          <div class="timeline-step" id="step-node-review">
+            <div class="timeline-step-circle">🔍</div>
+            <div class="timeline-step-name">Under Review</div>
+            <div class="timeline-step-time" id="time-review">—</div>
+          </div>
+
+          <div class="timeline-step" id="step-node-assigned">
+            <div class="timeline-step-circle">🏛️</div>
+            <div class="timeline-step-name">Assigned</div>
+            <div class="timeline-step-time" id="time-assigned">—</div>
+          </div>
+
+          <div class="timeline-step" id="step-node-inprogress">
+            <div class="timeline-step-circle">🔧</div>
+            <div class="timeline-step-name">In Progress</div>
+            <div class="timeline-step-time" id="time-inprogress">—</div>
+          </div>
+
+          <div class="timeline-step" id="step-node-resolved">
+            <div class="timeline-step-circle">✅</div>
+            <div class="timeline-step-name">Resolved</div>
+            <div class="timeline-step-time" id="time-resolved">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Layout: Details & Updates + Map & Evidence -->
+      <div class="track-grid">
+
+        <!-- Left Column -->
+        <div>
+          <!-- Description & Department Card -->
+          <div class="card card-elevated mb-3">
+            <div class="card-header">
+              <span class="card-title">Complaint Information</span>
+            </div>
+            <div class="card-body">
+              <p id="grievance-desc" style="font-size:.95rem;line-height:1.6;color:var(--text-secondary);margin-bottom:1.25rem"></p>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;background:#f8fafc;padding:1rem;border-radius:var(--radius-sm)">
+                <div>
+                  <div style="font-size:.75rem;font-weight:700;color:var(--text-muted);text-transform:uppercase">Assigned Department</div>
+                  <div id="dept-name" style="font-weight:700;color:var(--text-primary);font-size:.92rem;margin-top:.2rem">—</div>
+                  <div id="dept-jurisdiction" style="font-size:.78rem;color:var(--text-muted)">—</div>
+                </div>
+                <div>
+                  <div style="font-size:.75rem;font-weight:700;color:var(--text-muted);text-transform:uppercase">SLA / Resolution Deadline</div>
+                  <div id="sla-status-text" style="font-weight:700;font-size:.92rem;margin-top:.2rem">—</div>
+                  <div id="sla-deadline-date" style="font-size:.78rem;color:var(--text-muted)">—</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Official Update History -->
+          <div class="card card-elevated mb-3">
+            <div class="card-header">
+              <span class="card-title">Official Progress Updates</span>
+            </div>
+            <div class="card-body">
+              <div class="update-list" id="updates-container">
+                <p class="text-muted text-sm">No updates recorded yet.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Citizen Feedback (if resolved) -->
+          <div class="card card-elevated" id="feedback-section" style="display:none">
+            <div class="card-header">
+              <span class="card-title">Citizen Feedback & Rating</span>
+            </div>
+            <div class="card-body" id="feedback-body"></div>
+          </div>
+        </div>
+
+        <!-- Right Column: Evidence & Map -->
+        <div>
+          <!-- Attached Photo Evidence -->
+          <div class="card card-elevated mb-3">
+            <div class="card-header">
+              <span class="card-title">Photo Evidence</span>
+            </div>
+            <div class="card-body">
+              <div id="citizen-photo-container">
+                <div style="font-size:.8rem;font-weight:600;color:var(--text-muted);margin-bottom:.4rem">Citizen Upload:</div>
+                <img id="citizen-photo" class="evidence-thumb" alt="Grievance evidence" style="display:none" onclick="window.open(this.src)"/>
+                <div id="no-citizen-photo" class="text-muted text-sm" style="padding:1rem;background:#f8fafc;border-radius:var(--radius-sm);text-align:center">
+                  No photo provided by citizen.
+                </div>
+              </div>
+
+              <!-- Resolution Evidence (if official added one) -->
+              <div id="resolution-photo-container" style="display:none;margin-top:1.25rem;border-top:1px solid var(--border);padding-top:1rem">
+                <div style="font-size:.8rem;font-weight:700;color:var(--success);margin-bottom:.4rem">✅ Resolution Proof (Official):</div>
+                <img id="resolution-photo" class="evidence-thumb" alt="Resolution proof" onclick="window.open(this.src)"/>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pinned Map Location -->
+          <div class="card card-elevated mb-3">
+            <div class="card-header">
+              <span class="card-title">Location on Map</span>
+            </div>
+            <div class="card-body">
+              <div id="location-address" style="font-size:.88rem;font-weight:600;margin-bottom:.6rem;color:var(--text-primary)">
+                📍 Pinned Location
+              </div>
+              <div id="track-map"></div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="flex items-center gap-1">
+          <div class="logo-icon">NM</div>
+          <span style="font-family:'Poppins',sans-serif;font-weight:700;color:#fff;font-size:1.1rem">NagarMitra</span>
+        </div>
+        <p>Empowering citizens to build cleaner, safer, and smarter Indian cities through transparent civic governance.</p>
+      </div>
+      <div>
+        <h4>Quick Links</h4>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/track">Track Grievance</a></li>
+          <li><a href="/report-grievance">Report Grievance</a></li>
+          <li><a href="/dashboard">Public Dashboard</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Civic Departments</h4>
+        <ul>
+          <li><a href="/departments">Public Works (Roads)</a></li>
+          <li><a href="/departments">Water Supply Board</a></li>
+          <li><a href="/departments">Electricity Board</a></li>
+          <li><a href="/departments">Sanitation & Waste</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Assistance</h4>
+        <ul>
+          <li><a href="javascript:Chatbot.open()">🤖 AI Assistant</a></li>
+          <li><a href="/feedback">Citizen Feedback</a></li>
+          <li><a href="/login">Official Login</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2026 NagarMitra Platform. Designed for Indian Municipal Governance.</p>
+    </div>
+  </div>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/js/main.js"></script>
+<script>
+let currentGrievance = null;
+let trackMapInstance = null;
+let trackMarker = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+  renderRecentIds();
+  const params = new URLSearchParams(window.location.search);
+  const qId = params.get('id');
+  if (qId) {
+    document.getElementById('track-id-input').value = qId.trim().toUpperCase();
+    fetchGrievance(qId.trim().toUpperCase());
+  }
+});
+
+function handleTrackSearch(e) {
+  e.preventDefault();
+  const id = document.getElementById('track-id-input').value.trim().toUpperCase();
+  if (!id) return;
+  // Update URL without reloading
+  const newUrl = `${window.location.pathname}?id=${encodeURIComponent(id)}`;
+  window.history.pushState({ path: newUrl }, '', newUrl);
+  fetchGrievance(id);
+}
+
+async function fetchGrievance(id) {
+  const alertEl = document.getElementById('track-alert');
+  const loadingEl = document.getElementById('track-loading');
+  const resultEl = document.getElementById('track-result');
+
+  alertEl.style.display = 'none';
+  resultEl.style.display = 'none';
+  loadingEl.style.display = 'block';
+
+  try {
+    const res = await API.get(`/api/grievances/${encodeURIComponent(id)}`);
+    loadingEl.style.display = 'none';
+
+    if (!res.ok || !res.data || !res.data.grievance) {
+      alertEl.innerHTML = `
+        <strong>Grievance Not Found:</strong> No grievance record matches ID <code>${id}</code>.<br/>
+        Please check for typos or <a href="/report-grievance">submit a new grievance</a>.
+      `;
+      alertEl.style.display = 'block';
+      return;
+    }
+
+    currentGrievance = res.data.grievance;
+    const updates = res.data.updates || [];
+    const feedback = res.data.feedback || [];
+
+    saveRecentId(currentGrievance.grievance_id);
+    renderGrievance(currentGrievance, updates, feedback);
+    resultEl.style.display = 'block';
+  } catch (err) {
+    loadingEl.style.display = 'none';
+    alertEl.textContent = 'Network or server error while retrieving grievance details.';
+    alertEl.style.display = 'block';
+  }
+}
+
+function renderGrievance(g, updates, feedback) {
+  // Title & Basic info
+  document.getElementById('grievance-title').textContent = g.title;
+  document.getElementById('grievance-id-badge').textContent = g.grievance_id;
+  document.getElementById('grievance-cat-badge').innerHTML = `${categoryIcon(g.category)} ${g.category}`;
+  document.getElementById('grievance-priority-badge').innerHTML = priorityBadge(g.priority);
+  document.getElementById('grievance-status-pill').innerHTML = statusBadge(g.status);
+  document.getElementById('grievance-desc').textContent = g.description;
+
+  // Department & SLA
+  document.getElementById('dept-name').textContent = g.department_name || 'General Municipal Administration';
+  document.getElementById('dept-jurisdiction').textContent = g.department_jurisdiction ? `Jurisdiction: ${g.department_jurisdiction}` : 'City-wide';
+
+  // SLA details
+  const sla = g.sla || {};
+  const isOverdue = sla.is_overdue;
+  const slaTextEl = document.getElementById('sla-status-text');
+  slaTextEl.textContent = sla.status_text || 'Standard SLA';
+  slaTextEl.style.color = isOverdue ? 'var(--danger)' : 'var(--success)';
+
+  if (sla.deadline) {
+    document.getElementById('sla-deadline-date').textContent = `Target: ${formatDate(sla.deadline)}`;
+  } else {
+    document.getElementById('sla-deadline-date').textContent = 'Target: 7 Days';
+  }
+
+  // Overdue Banner
+  const overdueBanner = document.getElementById('overdue-banner');
+  if (isOverdue && g.status !== 'Resolved' && g.status !== 'Rejected') {
+    document.getElementById('overdue-text').textContent =
+      `This complaint has passed its designated resolution target (${sla.status_text}). Escalation notice dispatched to municipal department supervisor.`;
+    overdueBanner.style.display = 'block';
+  } else {
+    overdueBanner.style.display = 'none';
+  }
+
+  // Rejected banner & timeline handling
+  const rejectedBanner = document.getElementById('rejected-banner');
+  const rejectedNode = document.getElementById('step-node-resolved');
+
+  if (g.status === 'Rejected') {
+    rejectedBanner.style.display = 'block';
+    const lastUpdate = [...updates].reverse().find(u => u.new_status === 'Rejected');
+    if (lastUpdate && lastUpdate.remarks) {
+      document.getElementById('rejected-remarks').textContent = `Authority Remarks: "${lastUpdate.remarks}"`;
+    }
+  } else {
+    rejectedBanner.style.display = 'none';
+  }
+
+  // Visual Timeline
+  renderVisualTimeline(g.status, g.created_at, updates);
+
+  // Updates list
+  renderUpdates(updates);
+
+  // Photos
+  const citizenPhoto = document.getElementById('citizen-photo');
+  const noCitizenPhoto = document.getElementById('no-citizen-photo');
+  if (g.image_path) {
+    citizenPhoto.src = `/uploads/${g.image_path}`;
+    citizenPhoto.style.display = 'block';
+    noCitizenPhoto.style.display = 'none';
+  } else {
+    citizenPhoto.style.display = 'none';
+    noCitizenPhoto.style.display = 'block';
+  }
+
+  // Official resolution evidence
+  const resolutionPhotoContainer = document.getElementById('resolution-photo-container');
+  const resolutionPhoto = document.getElementById('resolution-photo');
+  const resolvedUpdate = [...updates].reverse().find(u => u.evidence_path);
+  if (resolvedUpdate && resolvedUpdate.evidence_path) {
+    resolutionPhoto.src = `/uploads/${resolvedUpdate.evidence_path}`;
+    resolutionPhotoContainer.style.display = 'block';
+  } else {
+    resolutionPhotoContainer.style.display = 'none';
+  }
+
+  // Pinned location & Map
+  const locAddr = document.getElementById('location-address');
+  locAddr.textContent = g.location_text ? `📍 ${g.location_text}` : '📍 Pinned GPS Coordinates';
+  renderMap(g.latitude, g.longitude, g);
+
+  // Feedback section (if resolved)
+  renderFeedback(g, feedback);
+}
+
+function renderVisualTimeline(currentStatus, createdAt, updates) {
+  const steps = [
+    { key: 'Submitted',    nodeId: 'step-node-submitted',  timeId: 'time-submitted' },
+    { key: 'Under Review', nodeId: 'step-node-review',     timeId: 'time-review' },
+    { key: 'Assigned',     nodeId: 'step-node-assigned',   timeId: 'time-assigned' },
+    { key: 'In Progress',  nodeId: 'step-node-inprogress', timeId: 'time-inprogress' },
+    { key: 'Resolved',     nodeId: 'step-node-resolved',   timeId: 'time-resolved' },
+  ];
+
+  // Map updates to timestamps
+  const timestamps = { 'Submitted': createdAt };
+  updates.forEach(u => {
+    if (u.new_status) timestamps[u.new_status] = u.created_at;
+  });
+
+  const statusOrder = ['Submitted', 'Under Review', 'Assigned', 'In Progress', 'Resolved'];
+  const currentIndex = statusOrder.indexOf(currentStatus);
+
+  const fillEl = document.getElementById('timeline-fill');
+
+  if (currentStatus === 'Rejected') {
+    // Show submitted -> under review -> rejected
+    fillEl.style.width = '30%';
+    steps.forEach((s, idx) => {
+      const node = document.getElementById(s.nodeId);
+      node.classList.remove('completed', 'current');
+      if (idx === 0) {
+        node.classList.add('completed');
+        document.getElementById(s.timeId).textContent = formatDate(timestamps['Submitted']);
+      } else if (idx === 1) {
+        node.classList.add('completed');
+        document.getElementById(s.timeId).textContent = formatDate(timestamps['Under Review'] || timestamps['Rejected']);
+      } else if (idx === 4) {
+        node.innerHTML = `
+          <div class="timeline-step-circle" style="border-color:var(--danger);color:var(--danger);background:#fee2e2">🚫</div>
+          <div class="timeline-step-name" style="color:var(--danger)">Rejected</div>
+          <div class="timeline-step-time">${formatDate(timestamps['Rejected'])}</div>
+        `;
+      }
+    });
+    return;
+  }
+
+  // Normal flow
+  let pct = 0;
+  if (currentIndex >= 0) {
+    pct = (currentIndex / (statusOrder.length - 1)) * 100;
+  }
+  fillEl.style.width = `${pct}%`;
+
+  steps.forEach((step, idx) => {
+    const node = document.getElementById(step.nodeId);
+    const timeEl = document.getElementById(step.timeId);
+
+    node.classList.remove('completed', 'current');
+
+    if (idx < currentIndex) {
+      node.classList.add('completed');
+      timeEl.textContent = timestamps[step.key] ? formatDate(timestamps[step.key]) : 'Done';
+    } else if (idx === currentIndex) {
+      if (currentStatus === 'Resolved') {
+        node.classList.add('completed');
+      } else {
+        node.classList.add('current');
+      }
+      timeEl.textContent = timestamps[step.key] ? formatDate(timestamps[step.key]) : 'Active';
+    } else {
+      timeEl.textContent = 'Pending';
+    }
+  });
+}
+
+function renderUpdates(updates) {
+  const container = document.getElementById('updates-container');
+  if (!updates || updates.length === 0) {
+    container.innerHTML = `<p class="text-muted text-sm">Complaint has been registered. Initial departmental review pending.</p>`;
+    return;
+  }
+
+  container.innerHTML = updates.map(u => `
+    <div class="update-bubble">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+        <span style="font-weight:700;font-size:.85rem;color:var(--primary)">
+          ${u.previous_status ? `${u.previous_status} → ` : ''}${u.new_status}
+        </span>
+        <span class="text-muted" style="font-size:.75rem">${formatDateTime(u.created_at)}</span>
+      </div>
+      <p style="font-size:.85rem;color:var(--text-secondary);margin:0">${u.remarks || 'Status update logged.'}</p>
+    </div>
+  `).join('');
+}
+
+function renderMap(lat, lng, g) {
+  const validLat = parseFloat(lat);
+  const validLng = parseFloat(lng);
+
+  if (isNaN(validLat) || isNaN(validLng)) {
+    document.getElementById('track-map').innerHTML = `
+      <div style="height:100%;display:flex;align-items:center;justify-content:center;background:#f8fafc;color:#718096;font-size:.85rem">
+        No map pin recorded for this grievance.
+      </div>
+    `;
+    return;
+  }
+
+  if (!trackMapInstance) {
+    trackMapInstance = L.map('track-map', { zoomControl: true }).setView([validLat, validLng], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    }).addTo(trackMapInstance);
+  } else {
+    trackMapInstance.setView([validLat, validLng], 15);
+    if (trackMarker) trackMapInstance.removeLayer(trackMarker);
+  }
+
+  trackMarker = L.marker([validLat, validLng], {
+    icon: MapHelper.markerIcon(g.category, g.status)
+  }).addTo(trackMapInstance);
+
+  trackMarker.bindPopup(`<strong>${g.title}</strong><br/>${g.location_text || 'Pinned location'}`).openPopup();
+  setTimeout(() => trackMapInstance.invalidateSize(), 300);
+}
+
+function renderFeedback(g, feedback) {
+  const section = document.getElementById('feedback-section');
+  const body = document.getElementById('feedback-body');
+
+  if (g.status !== 'Resolved') {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = 'block';
+
+  if (feedback && feedback.length > 0) {
+    const fb = feedback[0];
+    const stars = '★'.repeat(parseInt(fb.rating || 5)) + '☆'.repeat(5 - parseInt(fb.rating || 5));
+    body.innerHTML = `
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;padding:1rem;border-radius:var(--radius-sm)">
+        <div style="color:#eab308;font-size:1.3rem;letter-spacing:2px;margin-bottom:.35rem">${stars}</div>
+        <div style="font-weight:600;font-size:.9rem;color:#15803d">Citizen Feedback:</div>
+        <p style="font-size:.85rem;color:#166534;margin:.25rem 0 0">${fb.comments || 'Resolution accepted.'}</p>
+        <span class="text-muted" style="font-size:.72rem">Submitted on ${formatDate(fb.created_at)}</span>
+      </div>
+    `;
+  } else {
+    body.innerHTML = `
+      <p class="text-muted text-sm mb-2">This issue has been marked resolved. If you are the reporting citizen, please rate the resolution:</p>
+      <a href="/grievance-details?id=${g.grievance_id}" class="btn btn-primary btn-sm">⭐ Rate Resolution Quality</a>
+    `;
+  }
+}
+
+function saveRecentId(id) {
+  try {
+    let recent = JSON.parse(localStorage.getItem('nm_recent_grievances') || '[]');
+    recent = recent.filter(item => item !== id);
+    recent.unshift(id);
+    if (recent.length > 5) recent = recent.slice(0, 5);
+    localStorage.setItem('nm_recent_grievances', JSON.stringify(recent));
+    renderRecentIds();
+  } catch(e) {}
+}
+
+function renderRecentIds() {
+  try {
+    const recent = JSON.parse(localStorage.getItem('nm_recent_grievances') || '[]');
+    const container = document.getElementById('recent-ids-container');
+    const chips = document.getElementById('recent-chips');
+    if (!recent || recent.length === 0) {
+      container.style.display = 'none';
+      return;
+    }
+    chips.innerHTML = recent.map(id => `
+      <span class="quick-id-chip" onclick="quickTrack('${id}')">${id}</span>
+    `).join('');
+    container.style.display = 'flex';
+  } catch(e) {}
+}
+
+function quickTrack(id) {
+  document.getElementById('track-id-input').value = id;
+  const newUrl = `${window.location.pathname}?id=${encodeURIComponent(id)}`;
+  window.history.pushState({ path: newUrl }, '', newUrl);
+  fetchGrievance(id);
+}
+</script>
+</body>
+</html>

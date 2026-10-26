@@ -1,0 +1,343 @@
+# Antigravity Implementation Plan — NagarMitra
+## Civic Grievance Management Platform for India
+
+### 1. Project Objective
+
+Build **NagarMitra**, a responsive web platform where Indian citizens can report civic grievances, locate issues on an interactive map, and track their resolution. Government officials can receive, manage, and resolve complaints through role-based dashboards.
+
+The application must be fully functional, not just a static UI prototype.
+
+### 2. Technology Stack
+
+- **Frontend:** HTML5, CSS3, Vanilla JavaScript
+- **Backend:** Python Flask
+- **Storage:** CSV files
+- **Map:** Leaflet.js + OpenStreetMap
+- **Deployment:** Render Web Service
+- **Authentication:** Flask session-based authentication
+- **Notifications:** In-app status updates only; no SMS or WhatsApp notifications
+
+Do not use React, Next.js, Supabase, SQL databases, Firebase, or unnecessary frameworks.
+
+### 3. Website Navigation
+
+Create a consistent responsive navigation bar:
+
+**Home | Dashboard | Campaigns | Departments | Feedback**
+
+Include login/logout controls and a role-appropriate dashboard.
+
+### 4. User Roles
+
+#### Citizen
+- Register and log in.
+- Submit a grievance with title, description, category, photo, and map location.
+- View nearby grievances on the Leaflet map.
+- Track complaint status using a grievance ID.
+- View updates and resolution evidence.
+- Participate in community campaigns.
+- Submit feedback after resolution.
+
+#### Government Official
+- Access only authorized complaints assigned to their department or jurisdiction.
+- Review grievance details and attached images.
+- Update status: Submitted, Under Review, Assigned, In Progress, Resolved, or Rejected.
+- Add progress notes and resolution evidence.
+- View pending, overdue, and resolved complaints.
+
+#### Administrator
+- Manage departments and official accounts.
+- Assign grievances to departments or officials.
+- Manage users and campaigns.
+- Review escalations and complaint statistics.
+- Access administrative reports.
+
+### 5. Core Pages
+
+#### Home — `index.html`
+- Professional civic-tech landing page.
+- Prominent “Report a Grievance” action.
+- Statistics: total complaints, resolved, pending, and in progress.
+- Interactive Leaflet map showing public grievance locations.
+- Recent complaints and category-based filters.
+- Responsive design for mobile and desktop.
+
+#### Dashboard — `dashboard.html`
+- Display information based on the authenticated role.
+- Citizen: submitted complaints and their status.
+- Official: assigned workload and complaint queue.
+- Admin: platform-wide statistics and management overview.
+- Use JavaScript to retrieve current data from Flask API endpoints.
+
+#### Campaigns — `campaigns.html`
+- Display community improvement initiatives.
+- Allow citizens to view and join campaigns.
+- Allow authorized administrators to create, edit, and close campaigns.
+- Track participation and campaign progress.
+
+#### Departments — `departments.html`
+- Display municipal departments, descriptions, and responsibilities.
+- Show which grievance categories each department handles.
+- Allow administrators to manage departments and official assignments.
+
+#### Feedback — `feedback.html`
+- Allow citizens to rate completed grievance resolutions.
+- Store feedback, rating, and optional comments.
+- Display aggregate ratings and feedback statistics.
+- Prevent unauthorized or duplicate feedback submissions.
+
+#### Additional Pages
+- `login.html`
+- `register.html`
+- `report-grievance.html`
+- `grievance-details.html`
+- `profile.html`
+- `404.html`
+
+### 6. Leaflet Map Requirements
+
+Use Leaflet.js and OpenStreetMap tiles.
+
+Implement:
+- Click-to-select complaint location.
+- Browser geolocation with explicit user permission.
+- Latitude and longitude storage.
+- Category-specific marker styling.
+- Marker popups containing grievance title, category, status, and submission date.
+- Filters by category, status, and date.
+- Marker clustering only if needed.
+- Responsive map layout.
+
+Do not expose citizens' private addresses, phone numbers, or other personal information through public map markers. Display only public-safe grievance details.
+
+### 7. CSV Storage Architecture
+
+Store application data in a dedicated directory:
+
+`/var/data/`
+
+Create these CSV files:
+
+**users.csv**
+- user_id
+- name
+- email
+- password_hash
+- role
+- department_id
+- created_at
+- is_active
+
+**grievances.csv**
+- grievance_id
+- citizen_id
+- title
+- description
+- category
+- latitude
+- longitude
+- location_text
+- image_path
+- department_id
+- assigned_official_id
+- status
+- priority
+- created_at
+- updated_at
+- resolved_at
+
+**grievance_updates.csv**
+- update_id
+- grievance_id
+- updated_by
+- previous_status
+- new_status
+- remarks
+- evidence_path
+- created_at
+
+**departments.csv**
+- department_id
+- department_name
+- description
+- jurisdiction
+- is_active
+
+**campaigns.csv**
+- campaign_id
+- title
+- description
+- location
+- start_date
+- end_date
+- created_by
+- status
+
+**campaign_participants.csv**
+- campaign_id
+- user_id
+- joined_at
+
+**feedback.csv**
+- feedback_id
+- grievance_id
+- citizen_id
+- rating
+- comments
+- created_at
+
+Create CSV files with headers automatically when missing. Never overwrite existing records during application startup.
+
+### 8. Backend API Requirements
+
+Implement Flask API endpoints for:
+
+**Authentication**
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
+
+**Grievances**
+- `GET /api/grievances`
+- `POST /api/grievances`
+- `GET /api/grievances/<id>`
+- `PATCH /api/grievances/<id>/status`
+- `PATCH /api/grievances/<id>/assign`
+- `POST /api/grievances/<id>/updates`
+
+**Departments**
+- `GET /api/departments`
+- `POST /api/departments`
+- `PATCH /api/departments/<id>`
+
+**Campaigns**
+- `GET /api/campaigns`
+- `POST /api/campaigns`
+- `POST /api/campaigns/<id>/join`
+
+**Feedback**
+- `GET /api/feedback`
+- `POST /api/feedback`
+
+**Dashboard**
+- `GET /api/dashboard/stats`
+
+Return JSON responses with appropriate HTTP status codes. Add pagination and filters where appropriate.
+
+### 9. Grievance Workflow
+
+Implement the following workflow:
+
+1. Citizen submits a complaint.
+2. Backend generates a unique grievance ID.
+3. Complaint is saved in CSV storage.
+4. Complaint is assigned to the appropriate department or placed in an unassigned queue.
+5. Authorized official reviews and updates the complaint.
+6. Every status change creates a record in `grievance_updates.csv`.
+7. The citizen sees the latest status and progress history.
+8. The official marks the issue resolved and adds evidence.
+9. The citizen can submit feedback.
+
+Avoid automatically claiming that a complaint has been resolved without an authorized status update.
+
+### 10. Security and Reliability
+
+- Hash passwords using Werkzeug security utilities; never store plaintext passwords.
+- Use server-side session authentication with secure cookie settings.
+- Enforce role-based permissions on every protected API endpoint.
+- Validate inputs and uploaded file types and sizes.
+- Generate unique filenames for uploaded images.
+- Prevent path traversal and CSV formula injection in exports.
+- Protect state-changing requests against CSRF.
+- Use locking around CSV read-modify-write operations.
+- Write updates atomically where possible and maintain regular backups.
+- Do not expose raw CSV files, password hashes, or private user information publicly.
+- Store secrets and Flask session keys in Render environment variables.
+
+Because CSV is not a transactional database, document its limitations and prevent simultaneous writes from corrupting data. Do not run multiple application instances against the same CSV files.
+
+### 11. Render Deployment
+
+Use a single Flask web service to serve both the frontend and backend API.
+
+Required files:
+
+- `app.py`
+- `requirements.txt`
+- `render.yaml` (optional)
+- `templates/`
+- `static/css/`
+- `static/js/`
+- `storage/` (local development only)
+- `uploads/` (local development only)
+
+Configure:
+- Build command: `pip install -r requirements.txt`
+- Start command: `gunicorn app:app`
+- Bind the service to the port supplied by the `PORT` environment variable.
+- Set `DATA_DIR=/var/data` for persistent CSV storage.
+- Configure the Render persistent disk mount path as `/var/data`.
+- Configure an appropriate Flask secret key through environment variables.
+
+**Important:** Render's filesystem is ephemeral by default. Persistent CSV records and uploaded files require a persistent disk, which is available on supported paid services. If deploying without a persistent disk, explicitly treat stored data as temporary. See the official [Render persistent disk documentation](https://render.com/docs/disks) and [Flask deployment guide](https://render.com/docs/deploy-flask).
+
+### 12. UI/UX Requirements
+
+- Clean, modern Indian civic-tech design.
+- Mobile-first responsive layouts.
+- Clear complaint status indicators.
+- Accessible forms and keyboard navigation.
+- Loading states, empty states, validation errors, and success messages.
+- Confirmation before destructive actions.
+- Consistent typography, spacing, cards, buttons, and navigation.
+- Use realistic sample data for development, not fabricated live government statistics.
+- Avoid excessive animations and unnecessary decorative elements.
+
+### 13. Implementation Phases
+
+**Phase 1 — Foundation**
+- Create project structure and shared layout.
+- Configure Flask and static assets.
+- Implement CSV initialization and data access utilities.
+
+**Phase 2 — Authentication**
+- Build registration, login, logout, sessions, and role permissions.
+- Create a controlled initial administrator setup.
+
+**Phase 3 — Grievances**
+- Implement submission, image uploads, CSV persistence, tracking, assignment, and status history.
+
+**Phase 4 — Maps and Dashboards**
+- Integrate Leaflet.
+- Implement role-based dashboards, filters, statistics, and map popups.
+
+**Phase 5 — Community Modules**
+- Implement campaigns, departments, participation, and feedback.
+
+**Phase 6 — Security and Testing**
+- Test permissions, validation, duplicate submissions, concurrent writes, upload restrictions, and persistence.
+
+**Phase 7 — Deployment**
+- Deploy the complete application on Render.
+- Configure persistent storage and environment variables.
+- Test all workflows using the live deployment.
+
+### 14. Acceptance Criteria
+
+The implementation is complete only when:
+
+- A citizen can register, log in, and submit a grievance.
+- A grievance receives a unique tracking ID.
+- Location selection works on the Leaflet map.
+- An official can access and update authorized complaints.
+- Citizens can see status history and resolution evidence.
+- Admins can manage departments and assignments.
+- Campaign participation and feedback work end to end.
+- Role restrictions are enforced on the backend.
+- CSV data survives service restarts when persistent storage is configured.
+- The website works on mobile and desktop.
+- All navigation links and API integrations work.
+- There are no placeholder buttons, mock-only workflows, or unresolved console errors.
+
+**Final instruction:** First inspect the existing project files and preserve any working implementation. Then implement the application phase by phase, test each module, and fix integration errors before moving forward. Do not replace the selected technology stack or introduce an external database without explicit approval.
