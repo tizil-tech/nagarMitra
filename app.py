@@ -1314,7 +1314,7 @@ def api_chat():
             extracted_grievance = _enrich_grievance(found)
 
     groq_api_key = os.environ.get("GROQ_API_KEY", "").strip()
-    groq_model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
+    groq_model = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b").strip()
 
     system_instruction = (
         "You are NagarMitra AI, the official municipal civic assistant for the NagarMitra Civic Grievance Platform in India.\n"
